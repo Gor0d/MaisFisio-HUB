@@ -1,0 +1,30 @@
+# dependências e builds
+/node_modules
+/.next
+/out
+/coverage
+
+# ambiente local
+.env
+.env.local
+.env.*.local
+
+# relatórios gerados pela importação
+/reports/*.json
+/reports/*.csv
+
+# planilha assistencial com dados de pacientes (LGPD) — nunca versionar
+*.xlsx
+
+# Claude Code local
+.claude/
+
+# editores e sistema
+.DS_Store
+Thumbs.db
+*.log
+*.tsbuildinfo
+
+# Supabase local
+/supabase/.branches
+/supabase/.temp
