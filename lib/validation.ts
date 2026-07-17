@@ -6,6 +6,7 @@ export const loginSchema = z.object({
 });
 
 export const productionSchema = z.object({
+  unit_id: z.uuid("Selecione a unidade."),
   service_id: z.uuid(),
   record_date: z.iso.date(),
   shift: z.enum(["MANHÃ", "TARDE", "NOITE"]),
@@ -18,6 +19,7 @@ export const productionSchema = z.object({
 });
 
 export const scaleAssessmentSchema = z.object({
+  unit_id: z.uuid("Selecione a unidade."),
   scale_type: z.enum(["barthel", "mrc", "melhoria_uti"]),
   initials: z.string().trim().min(1).max(30).regex(/^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ. -]*$/, "Use somente iniciais; não informe o nome completo."),
   record_number: z.string().trim().min(1, "Informe o registro/prontuário.").max(50),

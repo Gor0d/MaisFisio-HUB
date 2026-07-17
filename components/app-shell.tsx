@@ -3,12 +3,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, BarChart3, ClipboardPlus, FileBarChart, LogOut, Menu, Settings, X } from "lucide-react";
-import { useState } from "react";
-import { logout } from "@/app/actions/auth";
+import { Activity, BarChart3, Building2, ClipboardPlus, FileBarChart, LogOut, Menu, Settings, X } from "lucide-react";
+import { useRef, useState } from "react";
+import { logout, setActiveUnit } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { Profile } from "@/lib/types";
+import type { Profile, Unit } from "@/lib/types";
 
 const mainNav = [
   { href: "/dashboard", label: "Visão geral", icon: BarChart3 },
@@ -17,10 +18,23 @@ const mainNav = [
   { href: "/relatorios", label: "Relatórios", icon: FileBarChart },
 ];
 
-export function AppShell({ profile, children }: { profile: Profile; children: React.ReactNode }) {
+export function AppShell({ profile, units, activeUnitId, children }: { profile: Profile; units: Unit[]; activeUnitId: string | null; children: React.ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const unitFormRef = useRef<HTMLFormElement>(null);
   const nav = profile.role === "colaborador" ? mainNav : [...mainNav, { href: "/admin", label: "Administração", icon: Settings }];
+
+  const UnitSwitcher = () => units.length === 0 ? null : (
+    <form ref={unitFormRef} action={setActiveUnit} className="border-b px-4 py-3">
+      <label className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"><Building2 className="size-3.5" />Unidade</label>
+      {units.length === 1 && profile.role !== "super_admin"
+        ? <p className="truncate text-sm font-medium">{units[0].name}</p>
+        : <Select name="unit_id" defaultValue={activeUnitId ?? "all"} onChange={() => unitFormRef.current?.requestSubmit()}>
+            {profile.role === "super_admin" && <option value="all">Todas as unidades</option>}
+            {units.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+          </Select>}
+    </form>
+  );
 
   const Sidebar = () => (
     <>
@@ -28,6 +42,7 @@ export function AppShell({ profile, children }: { profile: Profile; children: Re
         <Image src="/icon.svg" width={40} height={40} alt="" className="rounded-xl" />
         <div><p className="font-display text-lg font-bold tracking-tight">MaisFisio</p><p className="text-[11px] text-muted-foreground">Indicadores assistenciais</p></div>
       </div>
+      <UnitSwitcher />
       <nav className="flex-1 space-y-1 p-3">
         {nav.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`);

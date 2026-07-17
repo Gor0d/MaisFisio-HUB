@@ -10,9 +10,10 @@ declare
   value jsonb;
 begin
   insert into public.production_records (
-    service_id, record_date, shift, sector_id, sector_type,
+    unit_id, service_id, record_date, shift, sector_id, sector_type,
     collaborator_id, context, notes, created_by
   ) values (
+    (payload ->> 'unit_id')::uuid,
     (payload ->> 'service_id')::uuid,
     (payload ->> 'record_date')::date,
     (payload ->> 'shift')::public.work_shift,
@@ -61,11 +62,13 @@ begin
 
   select id into saved_patient_id
   from public.patients
-  where record_number = trim(payload ->> 'record_number');
+  where unit_id = (payload ->> 'unit_id')::uuid
+    and record_number = trim(payload ->> 'record_number');
 
   if saved_patient_id is null then
-    insert into public.patients (initials, record_number, age)
+    insert into public.patients (unit_id, initials, record_number, age)
     values (
+      (payload ->> 'unit_id')::uuid,
       upper(trim(payload ->> 'initials')),
       trim(payload ->> 'record_number'),
       nullif(payload ->> 'age', '')::smallint
@@ -81,9 +84,10 @@ begin
   end if;
 
   insert into public.scale_assessments (
-    scale_type, patient_id, collaborator_id, assessment_date, moment,
+    unit_id, scale_type, patient_id, collaborator_id, assessment_date, moment,
     sector_id, sector_type, attendance_number, cid, event_date, notes, created_by
   ) values (
+    (payload ->> 'unit_id')::uuid,
     (payload ->> 'scale_type')::public.scale_type,
     saved_patient_id,
     nullif(payload ->> 'collaborator_id', '')::uuid,

@@ -1,7 +1,10 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { ACTIVE_UNIT_COOKIE } from "@/lib/units";
 import { friendlyError } from "@/lib/utils";
 import { loginSchema } from "@/lib/validation";
 
@@ -23,4 +26,11 @@ export async function logout() {
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect("/login");
+}
+
+export async function setActiveUnit(formData: FormData) {
+  const unitId = String(formData.get("unit_id") ?? "");
+  if (!/^([0-9a-f-]{36}|all)$/.test(unitId)) return;
+  (await cookies()).set(ACTIVE_UNIT_COOKIE, unitId, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
+  revalidatePath("/", "layout");
 }

@@ -18,21 +18,46 @@ create or replace function public.is_manager()
 returns boolean
 language sql stable security definer set search_path = public
 as $$
-  select coalesce(public.current_app_role() in ('admin', 'coordenador'), false);
+  select coalesce(public.current_app_role() in ('super_admin', 'admin', 'coordenador'), false);
+$$;
+
+create or replace function public.is_super_admin()
+returns boolean
+language sql stable security definer set search_path = public
+as $$
+  select coalesce(public.current_app_role() = 'super_admin', false);
+$$;
+
+-- Vínculo de acesso por unidade; super_admin (matriz) enxerga todas.
+create or replace function public.is_member_of(target_unit uuid)
+returns boolean
+language sql stable security definer set search_path = public
+as $$
+  select public.is_super_admin() or exists (
+    select 1 from public.profile_units pu
+    where pu.user_id = auth.uid() and pu.unit_id = target_unit
+  );
 $$;
 
 revoke all on function public.current_app_role() from public;
 revoke all on function public.current_service_id() from public;
 revoke all on function public.is_manager() from public;
+revoke all on function public.is_super_admin() from public;
+revoke all on function public.is_member_of(uuid) from public;
 grant execute on function public.current_app_role() to authenticated;
 grant execute on function public.current_service_id() to authenticated;
 grant execute on function public.is_manager() to authenticated;
+grant execute on function public.is_super_admin() to authenticated;
+grant execute on function public.is_member_of(uuid) to authenticated;
 
 -- O próprio usuário pode alterar somente o nome. Papel e serviço são definidos
 -- por convite administrativo (service role), nunca por metadados de cadastro.
 revoke update on public.profiles from authenticated;
 grant update (full_name) on public.profiles to authenticated;
 
+alter table public.units enable row level security;
+alter table public.profile_units enable row level security;
+alter table public.collaborator_units enable row level security;
 alter table public.services enable row level security;
 alter table public.profiles enable row level security;
 alter table public.sectors enable row level security;
@@ -50,6 +75,21 @@ alter table public.scale_scores enable row level security;
 alter table public.indicator_targets enable row level security;
 alter table public.audit_logs enable row level security;
 
+create policy "authenticated reads units" on public.units for select to authenticated using (true);
+create policy "super admin manages units" on public.units for all to authenticated
+using (public.is_super_admin()) with check (public.is_super_admin());
+
+create policy "users read own unit links managers read all" on public.profile_units for select to authenticated
+using (user_id = auth.uid() or public.is_manager());
+create policy "admins manage profile units" on public.profile_units for all to authenticated
+using (public.is_super_admin() or (public.current_app_role() = 'admin' and public.is_member_of(unit_id)))
+with check (public.is_super_admin() or (public.current_app_role() = 'admin' and public.is_member_of(unit_id)));
+
+create policy "authenticated reads collaborator units" on public.collaborator_units for select to authenticated using (true);
+create policy "admins manage collaborator units" on public.collaborator_units for all to authenticated
+using (public.is_super_admin() or (public.current_app_role() in ('admin', 'coordenador') and public.is_member_of(unit_id)))
+with check (public.is_super_admin() or (public.current_app_role() in ('admin', 'coordenador') and public.is_member_of(unit_id)));
+
 create policy "authenticated reads services" on public.services for select to authenticated using (true);
 create policy "authenticated reads sectors" on public.sectors for select to authenticated using (true);
 create policy "authenticated reads service sectors" on public.service_sectors for select to authenticated using (true);
@@ -57,57 +97,62 @@ create policy "authenticated reads indicators" on public.indicators for select t
 create policy "authenticated reads scale items" on public.scale_items for select to authenticated using (true);
 create policy "authenticated reads scale options" on public.scale_item_options for select to authenticated using (true);
 
-create policy "admin manages services" on public.services for all to authenticated
-using (public.current_app_role() = 'admin') with check (public.current_app_role() = 'admin');
-create policy "admin manages sectors" on public.sectors for all to authenticated
-using (public.current_app_role() = 'admin') with check (public.current_app_role() = 'admin');
+-- Catálogos clínicos são globais (padrão MaisFisio): somente a matriz altera.
+create policy "super admin manages services" on public.services for all to authenticated
+using (public.is_super_admin()) with check (public.is_super_admin());
+create policy "unit admin manages sectors" on public.sectors for all to authenticated
+using (public.is_super_admin() or (public.current_app_role() = 'admin' and public.is_member_of(unit_id)))
+with check (public.is_super_admin() or (public.current_app_role() = 'admin' and public.is_member_of(unit_id)));
 create policy "admin manages service sectors" on public.service_sectors for all to authenticated
-using (public.current_app_role() = 'admin') with check (public.current_app_role() = 'admin');
-create policy "admin manages indicators" on public.indicators for all to authenticated
-using (public.current_app_role() = 'admin') with check (public.current_app_role() = 'admin');
-create policy "admin manages scale items" on public.scale_items for all to authenticated
-using (public.current_app_role() = 'admin') with check (public.current_app_role() = 'admin');
-create policy "admin manages scale options" on public.scale_item_options for all to authenticated
-using (public.current_app_role() = 'admin') with check (public.current_app_role() = 'admin');
+using (public.is_super_admin() or (public.current_app_role() = 'admin' and public.is_member_of((select s.unit_id from public.sectors s where s.id = sector_id))))
+with check (public.is_super_admin() or (public.current_app_role() = 'admin' and public.is_member_of((select s.unit_id from public.sectors s where s.id = sector_id))));
+create policy "super admin manages indicators" on public.indicators for all to authenticated
+using (public.is_super_admin()) with check (public.is_super_admin());
+create policy "super admin manages scale items" on public.scale_items for all to authenticated
+using (public.is_super_admin()) with check (public.is_super_admin());
+create policy "super admin manages scale options" on public.scale_item_options for all to authenticated
+using (public.is_super_admin()) with check (public.is_super_admin());
 
 create policy "users read own profile managers read service" on public.profiles for select to authenticated
 using (
   user_id = auth.uid()
-  or public.current_app_role() = 'admin'
+  or public.current_app_role() in ('super_admin', 'admin')
   or (public.current_app_role() = 'coordenador' and service_id = public.current_service_id())
 );
 create policy "admin manages profiles" on public.profiles for all to authenticated
-using (public.current_app_role() = 'admin') with check (public.current_app_role() = 'admin');
+using (public.current_app_role() in ('super_admin', 'admin')) with check (public.current_app_role() in ('super_admin', 'admin'));
 create policy "user updates own basic profile" on public.profiles for update to authenticated
 using (user_id = auth.uid())
 with check (user_id = auth.uid() and role = public.current_app_role());
 
 create policy "authenticated reads collaborators" on public.collaborators for select to authenticated using (active or public.is_manager());
 create policy "managers manage collaborators" on public.collaborators for all to authenticated
-using (public.current_app_role() = 'admin' or (public.current_app_role() = 'coordenador' and service_id = public.current_service_id()))
-with check (public.current_app_role() = 'admin' or (public.current_app_role() = 'coordenador' and service_id = public.current_service_id()));
+using (public.current_app_role() in ('super_admin', 'admin') or (public.current_app_role() = 'coordenador' and service_id = public.current_service_id()))
+with check (public.current_app_role() in ('super_admin', 'admin') or (public.current_app_role() = 'coordenador' and service_id = public.current_service_id()));
 create policy "managers read aliases" on public.collaborator_aliases for select to authenticated using (public.is_manager());
 create policy "managers manage aliases" on public.collaborator_aliases for all to authenticated
 using (public.is_manager()) with check (public.is_manager());
 
-create policy "authenticated reads patients" on public.patients for select to authenticated using (true);
-create policy "authenticated creates patients" on public.patients for insert to authenticated with check (true);
-create policy "managers update patients" on public.patients for update to authenticated using (public.is_manager()) with check (public.is_manager());
+create policy "unit members read patients" on public.patients for select to authenticated using (public.is_member_of(unit_id));
+create policy "unit members create patients" on public.patients for insert to authenticated with check (public.is_member_of(unit_id));
+create policy "managers update patients" on public.patients for update to authenticated
+using (public.is_manager() and public.is_member_of(unit_id)) with check (public.is_manager() and public.is_member_of(unit_id));
 
 create policy "service reads production" on public.production_records for select to authenticated
-using (public.current_app_role() = 'admin' or service_id = public.current_service_id());
+using (public.is_member_of(unit_id) and (public.current_app_role() in ('super_admin', 'admin') or service_id = public.current_service_id()));
 create policy "service creates production" on public.production_records for insert to authenticated
-with check (created_by = auth.uid() and (public.current_app_role() = 'admin' or service_id = public.current_service_id()));
+with check (created_by = auth.uid() and public.is_member_of(unit_id) and (public.current_app_role() in ('super_admin', 'admin') or service_id = public.current_service_id()));
 create policy "owner or manager updates production" on public.production_records for update to authenticated
-using (created_by = auth.uid() or (public.is_manager() and (public.current_app_role() = 'admin' or service_id = public.current_service_id())))
-with check (created_by = auth.uid() or public.is_manager());
+using (public.is_member_of(unit_id) and (created_by = auth.uid() or public.is_manager()))
+with check (public.is_member_of(unit_id) and (created_by = auth.uid() or public.is_manager()));
 create policy "manager deletes production" on public.production_records for delete to authenticated
-using (public.is_manager() and (public.current_app_role() = 'admin' or service_id = public.current_service_id()));
+using (public.is_manager() and public.is_member_of(unit_id) and (public.current_app_role() in ('super_admin', 'admin') or service_id = public.current_service_id()));
 
 create policy "service reads production values" on public.production_values for select to authenticated
 using (exists (
   select 1 from public.production_records r where r.id = record_id
-    and (public.current_app_role() = 'admin' or r.service_id = public.current_service_id())
+    and public.is_member_of(r.unit_id)
+    and (public.current_app_role() in ('super_admin', 'admin') or r.service_id = public.current_service_id())
 ));
 create policy "owner writes production values" on public.production_values for all to authenticated
 using (exists (
@@ -119,26 +164,31 @@ with check (exists (
     and (r.created_by = auth.uid() or public.is_manager())
 ));
 
-create policy "authenticated reads assessments" on public.scale_assessments for select to authenticated using (true);
-create policy "authenticated creates assessments" on public.scale_assessments for insert to authenticated with check (created_by = auth.uid());
+create policy "unit members read assessments" on public.scale_assessments for select to authenticated using (public.is_member_of(unit_id));
+create policy "unit members create assessments" on public.scale_assessments for insert to authenticated
+with check (created_by = auth.uid() and public.is_member_of(unit_id));
 create policy "owner or manager updates assessments" on public.scale_assessments for update to authenticated
-using (created_by = auth.uid() or public.is_manager()) with check (created_by = auth.uid() or public.is_manager());
-create policy "manager deletes assessments" on public.scale_assessments for delete to authenticated using (public.is_manager());
-create policy "authenticated reads scores" on public.scale_scores for select to authenticated using (true);
+using (public.is_member_of(unit_id) and (created_by = auth.uid() or public.is_manager()))
+with check (public.is_member_of(unit_id) and (created_by = auth.uid() or public.is_manager()));
+create policy "manager deletes assessments" on public.scale_assessments for delete to authenticated
+using (public.is_manager() and public.is_member_of(unit_id));
+create policy "unit members read scores" on public.scale_scores for select to authenticated
+using (exists (select 1 from public.scale_assessments a where a.id = assessment_id and public.is_member_of(a.unit_id)));
 create policy "owner writes scores" on public.scale_scores for all to authenticated
-using (exists (select 1 from public.scale_assessments a where a.id = assessment_id and (a.created_by = auth.uid() or public.is_manager())))
-with check (exists (select 1 from public.scale_assessments a where a.id = assessment_id and (a.created_by = auth.uid() or public.is_manager())));
+using (exists (select 1 from public.scale_assessments a where a.id = assessment_id and public.is_member_of(a.unit_id) and (a.created_by = auth.uid() or public.is_manager())))
+with check (exists (select 1 from public.scale_assessments a where a.id = assessment_id and public.is_member_of(a.unit_id) and (a.created_by = auth.uid() or public.is_manager())));
 
 create policy "authenticated reads targets" on public.indicator_targets for select to authenticated using (true);
 create policy "managers manage targets" on public.indicator_targets for all to authenticated
 using (public.is_manager()) with check (public.is_manager());
 create policy "managers read audit" on public.audit_logs for select to authenticated
-using (public.current_app_role() = 'admin' or public.current_app_role() = 'coordenador');
+using (public.is_manager());
 
 create or replace view public.scale_assessment_totals
 with (security_invoker = true) as
 select
   a.id,
+  a.unit_id,
   a.scale_type,
   a.patient_id,
   a.collaborator_id,
@@ -186,6 +236,7 @@ create or replace view public.production_metrics
 with (security_invoker = true) as
 select
   r.id as record_id,
+  r.unit_id,
   r.service_id,
   r.record_date,
   r.shift,
@@ -211,6 +262,7 @@ where v.record_id is not null or (i.derived and num.record_id is not null and de
 create or replace view public.dashboard_scale_summary
 with (security_invoker = true) as
 select
+  unit_id,
   scale_type,
   date_trunc('month', assessment_date)::date as month,
   count(*) filter (where moment = 'saida')::integer as discharges,
@@ -221,7 +273,7 @@ select
   round(avg(total) filter (where moment = 'saida'), 2) as average_exit
 from public.scale_assessment_results
 where complete
-group by scale_type, date_trunc('month', assessment_date);
+group by unit_id, scale_type, date_trunc('month', assessment_date);
 
 create or replace function public.write_audit_log()
 returns trigger language plpgsql security definer set search_path = public as $$

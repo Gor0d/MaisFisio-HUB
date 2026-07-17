@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { createClient } from "@/lib/supabase/client";
-import type { Collaborator, ScaleItem, ScaleType, Sector } from "@/lib/types";
+import type { Collaborator, CollaboratorUnit, ScaleItem, ScaleType, Sector, Unit } from "@/lib/types";
 import { friendlyError, todayISO } from "@/lib/utils";
 import { scaleAssessmentSchema } from "@/lib/validation";
 
@@ -23,9 +23,11 @@ type InputValues = z.input<typeof scaleAssessmentSchema>;
 type Values = z.output<typeof scaleAssessmentSchema>;
 const scaleMax: Record<ScaleType, number> = { barthel: 100, mrc: 60, melhoria_uti: 33 };
 
-export function ScaleForm({ type, items, sectors, collaborators }: { type: ScaleType; items: ScaleItem[]; sectors: Sector[]; collaborators: Collaborator[] }) {
+export function ScaleForm({ type, units, defaultUnitId, items, sectors, collaborators, collaboratorUnits }: { type: ScaleType; units: Unit[]; defaultUnitId?: string; items: ScaleItem[]; sectors: Sector[]; collaborators: Collaborator[]; collaboratorUnits: CollaboratorUnit[] }) {
   const [step, setStep] = useState(1);
-  const form = useForm<InputValues, unknown, Values>({ resolver: zodResolver(scaleAssessmentSchema), defaultValues: { scale_type: type, initials: "", record_number: "", assessment_date: todayISO(), moment: "entrada", sector_id: "", attendance_number: "", cid: "", notes: "", answers: items.map((item) => ({ item_id: item.id, option_id: "" })) } });
+  const form = useForm<InputValues, unknown, Values>({ resolver: zodResolver(scaleAssessmentSchema), defaultValues: { unit_id: defaultUnitId, scale_type: type, initials: "", record_number: "", assessment_date: todayISO(), moment: "entrada", sector_id: "", attendance_number: "", cid: "", notes: "", answers: items.map((item) => ({ item_id: item.id, option_id: "" })) } });
+  const unitId = form.watch("unit_id");
+  const unitCollaboratorIds = useMemo(() => new Set(collaboratorUnits.filter((x) => x.unit_id === unitId).map((x) => x.collaborator_id)), [collaboratorUnits, unitId]);
   const answers = form.watch("answers");
   const total = useMemo(() => answers.reduce((sum, answer) => { const item = items.find((x) => x.id === answer.item_id); return sum + (item?.scale_item_options.find((x) => x.id === answer.option_id)?.points ?? 0); }, 0), [answers, items]);
   const answered = answers.filter((x) => x.option_id).length;
@@ -44,15 +46,16 @@ export function ScaleForm({ type, items, sectors, collaborators }: { type: Scale
     <div className="flex items-center gap-3"><div className={`grid size-8 place-items-center rounded-full text-sm font-bold ${step >= 1 ? "bg-primary text-white" : "bg-muted"}`}>1</div><div className="h-px flex-1 bg-border"><div className={`h-full bg-primary transition-all ${step === 2 ? "w-full" : "w-0"}`} /></div><div className={`grid size-8 place-items-center rounded-full text-sm font-bold ${step >= 2 ? "bg-primary text-white" : "bg-muted text-muted-foreground"}`}>2</div></div>
     {step === 1 ? <Card><CardHeader><CardTitle>Dados da avaliação</CardTitle><CardDescription>Identificação mínima do paciente, conforme LGPD.</CardDescription></CardHeader><CardContent className="form-grid">
       <input type="hidden" {...form.register("scale_type")} />
+      {units.length > 1 ? <div className="field col-span-4"><Label>Unidade</Label><Select {...form.register("unit_id")}>{units.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select></div> : <input type="hidden" {...form.register("unit_id")} />}
       <div className="field col-span-4"><Label>Iniciais do paciente</Label><Input {...form.register("initials")} placeholder="Ex.: M. A. S." autoCapitalize="characters" /><FieldError text={form.formState.errors.initials?.message} /></div>
       <div className="field col-span-4"><Label>Nº de registro/prontuário</Label><Input {...form.register("record_number")} inputMode="numeric" /><FieldError text={form.formState.errors.record_number?.message} /></div>
       {type === "melhoria_uti" && <div className="field col-span-2"><Label>Idade</Label><Input type="number" min="0" max="130" {...form.register("age")} /></div>}
       <div className="field col-span-4"><Label>Momento</Label><Select {...form.register("moment")}><option value="entrada">Entrada</option><option value="saida">Saída</option></Select></div>
       <div className="field col-span-4"><Label>Data da avaliação</Label><Input type="date" max={todayISO()} {...form.register("assessment_date")} /></div>
-      <div className="field col-span-4"><Label>Setor</Label><Select {...form.register("sector_id")}><option value="">Selecione</option>{sectors.filter((x) => type !== "melhoria_uti" || x.context === "uti").map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select><FieldError text={form.formState.errors.sector_id?.message} /></div>
+      <div className="field col-span-4"><Label>Setor</Label><Select {...form.register("sector_id")}><option value="">Selecione</option>{sectors.filter((x) => x.unit_id === unitId && (type !== "melhoria_uti" || x.context === "uti")).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select><FieldError text={form.formState.errors.sector_id?.message} /></div>
       <div className="field col-span-4"><Label>Tipo de setor</Label><Select {...form.register("sector_type")}><option value="">Não informado</option><option>Médica</option><option>Ortopédica</option><option>Cirúrgica</option></Select></div>
       {type === "mrc" && <div className="field col-span-4"><Label>Número do atendimento</Label><Input {...form.register("attendance_number")} /></div>}
-      {type !== "barthel" && <div className="field col-span-4"><Label>Colaborador(a)</Label><Select {...form.register("collaborator_id")}><option value="">Selecione</option>{collaborators.map((x) => <option key={x.id} value={x.id}>{x.canonical_name}</option>)}</Select></div>}
+      {type !== "barthel" && <div className="field col-span-4"><Label>Colaborador(a)</Label><Select {...form.register("collaborator_id")}><option value="">Selecione</option>{collaborators.filter((x) => unitCollaboratorIds.has(x.id)).map((x) => <option key={x.id} value={x.id}>{x.canonical_name}</option>)}</Select></div>}
       {type === "melhoria_uti" && <><div className="field col-span-4"><Label>Diagnóstico principal (CID)</Label><Input {...form.register("cid")} /></div><div className="field col-span-4"><Label>Data de entrada/saída na UTI</Label><Input type="date" {...form.register("event_date")} /></div><div className="field col-span-12"><Label>Observações</Label><Textarea {...form.register("notes")} /></div></>}
       <Alert className="col-span-12 flex gap-3 border-emerald-200 bg-emerald-50 text-emerald-900"><ShieldCheck className="size-5 shrink-0" />Não informe o nome completo do paciente. Iniciais e prontuário são suficientes.</Alert>
       <div className="col-span-12 flex justify-between"><Button type="button" variant="ghost" onClick={() => history.back()}><ArrowLeft className="size-4" />Voltar</Button><Button type="button" onClick={next}>Continuar <ArrowRight className="size-4" /></Button></div>

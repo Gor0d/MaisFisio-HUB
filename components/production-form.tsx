@@ -14,18 +14,19 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { createClient } from "@/lib/supabase/client";
-import type { Collaborator, Indicator, Sector, Service } from "@/lib/types";
+import type { Collaborator, CollaboratorUnit, Indicator, Sector, Service, Unit } from "@/lib/types";
 import { friendlyError, todayISO } from "@/lib/utils";
 import { productionSchema } from "@/lib/validation";
 
 type Values = z.infer<typeof productionSchema>;
 const DRAFT_KEY = "maisfisio:production-draft";
 
-export function ProductionForm({ services, sectors, serviceSectors, collaborators, indicators, defaultServiceId, lockService }: { services: Service[]; sectors: Sector[]; serviceSectors: { service_id: string; sector_id: string }[]; collaborators: Collaborator[]; indicators: Indicator[]; defaultServiceId?: string; lockService: boolean }) {
-  const form = useForm<Values>({ resolver: zodResolver(productionSchema), defaultValues: { service_id: defaultServiceId, record_date: todayISO(), shift: "MANHÃ", sector_id: "", collaborator_id: "", context: "geral", notes: "", values: [] } });
-  const serviceId = form.watch("service_id"); const context = form.watch("context");
+export function ProductionForm({ units, defaultUnitId, services, sectors, serviceSectors, collaborators, collaboratorUnits, indicators, defaultServiceId, lockService }: { units: Unit[]; defaultUnitId?: string; services: Service[]; sectors: Sector[]; serviceSectors: { service_id: string; sector_id: string }[]; collaborators: Collaborator[]; collaboratorUnits: CollaboratorUnit[]; indicators: Indicator[]; defaultServiceId?: string; lockService: boolean }) {
+  const form = useForm<Values>({ resolver: zodResolver(productionSchema), defaultValues: { unit_id: defaultUnitId, service_id: defaultServiceId, record_date: todayISO(), shift: "MANHÃ", sector_id: "", collaborator_id: "", context: "geral", notes: "", values: [] } });
+  const unitId = form.watch("unit_id"); const serviceId = form.watch("service_id"); const context = form.watch("context");
   const contexts = useMemo(() => [...new Set(indicators.filter((i) => i.service_id === serviceId).map((i) => i.context))], [indicators, serviceId]);
   const visibleIndicators = indicators.filter((i) => i.service_id === serviceId && i.context === context);
+  const unitCollaboratorIds = useMemo(() => new Set(collaboratorUnits.filter((x) => x.unit_id === unitId).map((x) => x.collaborator_id)), [collaboratorUnits, unitId]);
   const allowedSectorIds = new Set(serviceSectors.filter((x) => x.service_id === serviceId).map((x) => x.sector_id));
 
   useEffect(() => { if (!contexts.includes(context) && contexts[0]) form.setValue("context", contexts[0]); }, [contexts, context, form]);
@@ -46,12 +47,13 @@ export function ProductionForm({ services, sectors, serviceSectors, collaborator
 
   return <form onSubmit={form.handleSubmit(submit)} className="grid gap-6">
     <Card><CardHeader><CardTitle>Identificação do lançamento</CardTitle><CardDescription>Data, profissional e local do atendimento.</CardDescription></CardHeader><CardContent className="form-grid">
+      {units.length > 1 ? <div className="field col-span-4"><Label>Unidade</Label><Select {...form.register("unit_id")}>{units.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select></div> : <input type="hidden" {...form.register("unit_id")} />}
       <div className="field col-span-4"><Label>Serviço</Label><Select {...form.register("service_id")} disabled={lockService}><option value="">Selecione</option>{services.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select>{lockService && <input type="hidden" {...form.register("service_id")} />}</div>
       {contexts.length > 1 && <div className="field col-span-4"><Label>Contexto</Label><Select {...form.register("context")}><option value="geral">Atendimento geral</option><option value="enfermaria">Enfermaria</option><option value="ambulatorio">Ambulatório</option><option value="uti">UTI</option></Select></div>}
       <div className="field col-span-4"><Label>Data</Label><Input type="date" max={todayISO()} {...form.register("record_date")} /></div>
-      <div className="field col-span-4"><Label>Colaborador(a)</Label><Select {...form.register("collaborator_id")}><option value="">Selecione</option>{collaborators.filter((x) => x.service_id === serviceId).map((x) => <option key={x.id} value={x.id}>{x.canonical_name}</option>)}</Select></div>
+      <div className="field col-span-4"><Label>Colaborador(a)</Label><Select {...form.register("collaborator_id")}><option value="">Selecione</option>{collaborators.filter((x) => x.service_id === serviceId && unitCollaboratorIds.has(x.id)).map((x) => <option key={x.id} value={x.id}>{x.canonical_name}</option>)}</Select></div>
       <div className="field col-span-3"><Label>Turno</Label><Select {...form.register("shift")}><option>MANHÃ</option><option>TARDE</option><option>NOITE</option></Select></div>
-      <div className="field col-span-3"><Label>Setor</Label><Select {...form.register("sector_id")}><option value="">Selecione</option>{sectors.filter((x) => allowedSectorIds.has(x.id)).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select></div>
+      <div className="field col-span-3"><Label>Setor</Label><Select {...form.register("sector_id")}><option value="">Selecione</option>{sectors.filter((x) => x.unit_id === unitId && allowedSectorIds.has(x.id)).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select></div>
       <div className="field col-span-2"><Label>Tipo de setor</Label><Select {...form.register("sector_type")}><option value="">Não se aplica</option><option>Médica</option><option>Ortopédica</option><option>Cirúrgica</option></Select></div>
     </CardContent></Card>
     <Card><CardHeader><CardTitle>Indicadores</CardTitle><CardDescription>Deixe em branco apenas quando o dado não se aplicar; use zero quando o resultado for zero.</CardDescription></CardHeader><CardContent>

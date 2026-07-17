@@ -1,4 +1,4 @@
-export type AppRole = "admin" | "coordenador" | "colaborador";
+export type AppRole = "super_admin" | "admin" | "coordenador" | "colaborador";
 export type ScaleType = "barthel" | "mrc" | "melhoria_uti";
 export type WorkShift = "MANHÃ" | "TARDE" | "NOITE";
 export type SectorType = "Médica" | "Ortopédica" | "Cirúrgica";
@@ -10,6 +10,12 @@ export interface Profile {
   service_id: string | null;
 }
 
+export interface Unit {
+  id: string;
+  code: string;
+  name: string;
+}
+
 export interface Service {
   id: string;
   code: string;
@@ -18,6 +24,7 @@ export interface Service {
 
 export interface Sector {
   id: string;
+  unit_id: string;
   code: string;
   name: string;
   context: string;
@@ -27,6 +34,11 @@ export interface Collaborator {
   id: string;
   canonical_name: string;
   service_id: string;
+}
+
+export interface CollaboratorUnit {
+  collaborator_id: string;
+  unit_id: string;
 }
 
 export interface Indicator {

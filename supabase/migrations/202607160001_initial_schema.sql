@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgcrypto;
 
-create type public.app_role as enum ('admin', 'coordenador', 'colaborador');
+create type public.app_role as enum ('super_admin', 'admin', 'coordenador', 'colaborador');
 create type public.work_shift as enum ('MANHÃ', 'TARDE', 'NOITE');
 create type public.sector_type as enum ('Médica', 'Ortopédica', 'Cirúrgica');
 create type public.indicator_kind as enum ('contagem', 'taxa', 'texto');
@@ -10,6 +10,17 @@ create type public.scale_type as enum ('barthel', 'mrc', 'melhoria_uti');
 create type public.assessment_moment as enum ('entrada', 'saida');
 
 create table public.services (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique check (code ~ '^[a-z0-9_]+$'),
+  name text not null unique,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+-- Unidades da MaisFisio (Hospital Galileu, Santa Terezinha, futuras).
+-- Catálogos clínicos (serviços, indicadores, escalas) são globais; setores,
+-- pacientes e lançamentos pertencem a uma unidade.
+create table public.units (
   id uuid primary key default gen_random_uuid(),
   code text not null unique check (code ~ '^[a-z0-9_]+$'),
   name text not null unique,
@@ -27,13 +38,23 @@ create table public.profiles (
   updated_at timestamptz not null default now()
 );
 
+-- Unidades às quais o usuário tem acesso. super_admin (matriz) enxerga todas
+-- sem precisar de vínculo aqui.
+create table public.profile_units (
+  user_id uuid not null references public.profiles(user_id) on delete cascade,
+  unit_id uuid not null references public.units(id) on delete cascade,
+  primary key (user_id, unit_id)
+);
+
 create table public.sectors (
   id uuid primary key default gen_random_uuid(),
-  code text not null unique check (code ~ '^[a-z0-9_]+$'),
+  unit_id uuid not null references public.units(id),
+  code text not null check (code ~ '^[a-z0-9_]+$'),
   name text not null,
   context text not null check (context in ('uti', 'enfermaria', 'clinica', 'ambulatorio')),
   active boolean not null default true,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  unique (unit_id, code)
 );
 
 create table public.service_sectors (
@@ -56,6 +77,13 @@ create table public.collaborators (
   unique (service_id, normalized_name)
 );
 
+-- Um profissional pode atuar em mais de uma unidade ao mesmo tempo.
+create table public.collaborator_units (
+  collaborator_id uuid not null references public.collaborators(id) on delete cascade,
+  unit_id uuid not null references public.units(id) on delete cascade,
+  primary key (collaborator_id, unit_id)
+);
+
 create table public.collaborator_aliases (
   id uuid primary key default gen_random_uuid(),
   collaborator_id uuid not null references public.collaborators(id) on delete cascade,
@@ -67,12 +95,13 @@ create table public.collaborator_aliases (
 
 create table public.patients (
   id uuid primary key default gen_random_uuid(),
+  unit_id uuid not null references public.units(id),
   initials text not null check (char_length(initials) between 1 and 30),
   record_number text not null,
   age smallint check (age between 0 and 130),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (record_number)
+  unique (unit_id, record_number)
 );
 
 comment on table public.patients is 'Dados mínimos permitidos pela LGPD: iniciais, prontuário/registro e idade; nomes completos são proibidos.';
@@ -99,6 +128,7 @@ create table public.indicators (
 
 create table public.production_records (
   id uuid primary key default gen_random_uuid(),
+  unit_id uuid not null references public.units(id),
   service_id uuid not null references public.services(id),
   record_date date not null,
   shift public.work_shift not null,
@@ -146,6 +176,7 @@ create table public.scale_item_options (
 
 create table public.scale_assessments (
   id uuid primary key default gen_random_uuid(),
+  unit_id uuid not null references public.units(id),
   scale_type public.scale_type not null,
   patient_id uuid not null references public.patients(id),
   collaborator_id uuid references public.collaborators(id),
@@ -172,6 +203,7 @@ create table public.scale_scores (
 create table public.indicator_targets (
   id uuid primary key default gen_random_uuid(),
   indicator_id uuid not null references public.indicators(id) on delete cascade,
+  unit_id uuid references public.units(id) on delete cascade,
   sector_id uuid references public.sectors(id) on delete cascade,
   valid_from date not null,
   valid_until date,
@@ -180,7 +212,7 @@ create table public.indicator_targets (
   created_by uuid not null references auth.users(id),
   created_at timestamptz not null default now(),
   check (valid_until is null or valid_until >= valid_from),
-  unique nulls not distinct (indicator_id, sector_id, valid_from)
+  unique nulls not distinct (indicator_id, unit_id, sector_id, valid_from)
 );
 
 create table public.audit_logs (
@@ -195,6 +227,9 @@ create table public.audit_logs (
 );
 
 create index production_records_dashboard_idx on public.production_records (record_date, service_id, sector_id);
+create index production_records_unit_idx on public.production_records (unit_id, record_date);
+create index scale_assessments_unit_idx on public.scale_assessments (unit_id, assessment_date);
+create index patients_unit_idx on public.patients (unit_id);
 create index production_records_collaborator_idx on public.production_records (collaborator_id, record_date);
 create index production_values_indicator_idx on public.production_values (indicator_id, record_id);
 create index scale_assessments_pair_idx on public.scale_assessments (scale_type, patient_id, attendance_number, assessment_date, moment);
@@ -220,6 +255,40 @@ create trigger production_records_updated_at before update on public.production_
 for each row execute function public.set_updated_at();
 create trigger scale_assessments_updated_at before update on public.scale_assessments
 for each row execute function public.set_updated_at();
+
+-- Consistência multi-unidade: setor, colaborador e paciente devem pertencer à
+-- unidade do registro (protege inclusive escritas via service_role/importação).
+create or replace function public.validate_production_unit()
+returns trigger language plpgsql as $$
+begin
+  if (select unit_id from public.sectors where id = new.sector_id) is distinct from new.unit_id then
+    raise exception 'Setor não pertence à unidade do lançamento';
+  end if;
+  if not exists (select 1 from public.collaborator_units cu where cu.collaborator_id = new.collaborator_id and cu.unit_id = new.unit_id) then
+    raise exception 'Colaborador não está vinculado à unidade do lançamento';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger production_unit_validation before insert or update on public.production_records
+for each row execute function public.validate_production_unit();
+
+create or replace function public.validate_assessment_unit()
+returns trigger language plpgsql as $$
+begin
+  if (select unit_id from public.sectors where id = new.sector_id) is distinct from new.unit_id then
+    raise exception 'Setor não pertence à unidade da avaliação';
+  end if;
+  if (select unit_id from public.patients where id = new.patient_id) is distinct from new.unit_id then
+    raise exception 'Paciente não pertence à unidade da avaliação';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger assessment_unit_validation before insert or update on public.scale_assessments
+for each row execute function public.validate_assessment_unit();
 
 create or replace function public.validate_production_value()
 returns trigger language plpgsql as $$

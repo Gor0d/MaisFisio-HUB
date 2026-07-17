@@ -9,7 +9,19 @@ insert into public.services (code, name) values
   ('assistencia_social', 'Assistência Social')
 on conflict (code) do update set name = excluded.name, active = true;
 
-insert into public.sectors (code, name, context) values
+-- Unidades da MaisFisio. Novas unidades são criadas pelo portal da matriz
+-- (super_admin), com seus próprios setores.
+insert into public.units (code, name) values
+  ('galileu', 'Hospital Público Estadual Galileu'),
+  ('santa_terezinha', 'Unidade Santa Terezinha')
+on conflict (code) do update set name = excluded.name, active = true;
+
+-- Setores do Hospital Galileu (extraídos da planilha). Os setores do Santa
+-- Terezinha serão cadastrados pelo portal quando a unidade entrar em operação.
+with galileu as (select id from public.units where code = 'galileu')
+insert into public.sectors (unit_id, code, name, context)
+select galileu.id, v.code, v.name, v.context
+from galileu cross join (values
   ('uti', 'UTI', 'uti'),
   ('enfermaria_azul', 'Enfermaria Azul', 'enfermaria'),
   ('enfermaria_laranja', 'Enfermaria Laranja', 'enfermaria'),
@@ -20,7 +32,8 @@ insert into public.sectors (code, name, context) values
   ('clinica_laranja', 'Clínica Laranja', 'clinica'),
   ('clinica_azul', 'Clínica Azul', 'clinica'),
   ('ambulatorio', 'Ambulatório', 'ambulatorio')
-on conflict (code) do update set name = excluded.name, context = excluded.context, active = true;
+) as v(code, name, context)
+on conflict (unit_id, code) do update set name = excluded.name, context = excluded.context, active = true;
 
 insert into public.service_sectors (service_id, sector_id)
 select s.id, x.id

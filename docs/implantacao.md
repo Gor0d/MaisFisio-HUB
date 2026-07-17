@@ -8,13 +8,15 @@ As migrações devem ser aplicadas na ordem presente em `supabase/migrations/`; 
 
 ## 2. Primeiro administrador
 
-Crie o primeiro usuário no painel Authentication do Supabase. O gatilho criará um perfil como colaborador por segurança. No SQL Editor, promova somente esse usuário:
+Crie o primeiro usuário no painel Authentication do Supabase. O gatilho criará um perfil como colaborador por segurança. No SQL Editor, promova somente esse usuário à matriz (super_admin — enxerga e administra todas as unidades):
 
 ```sql
 update public.profiles
-set role = 'admin', active = true
+set role = 'super_admin', active = true
 where user_id = '<UUID DO USUÁRIO>';
 ```
+
+Administradores de unidade (papel `admin`) precisam também do vínculo de unidade em `profile_units`; o convite pela tela Administração já cria esse vínculo automaticamente.
 
 Depois disso, novos usuários devem ser convidados pela tela Administração. Papel e serviço são gravados pelo servidor com `service_role`; metadados enviados pelo cliente nunca concedem privilégios.
 
@@ -36,7 +38,7 @@ Para importar de fato, configure `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_R
 npm run import:xlsx
 ```
 
-O importador usa lotes, ignora abas ocultas duplicadas, recalcula as pontuações a partir das opções e nunca importa totais, flags de melhora ou o índice quebrado da Fono.
+O importador usa lotes, ignora abas ocultas duplicadas, recalcula as pontuações a partir das opções e nunca importa totais, flags de melhora ou o índice quebrado da Fono. Todo o histórico é vinculado à unidade **Hospital Galileu** (`galileu`); os colaboradores importados recebem o vínculo de unidade correspondente.
 
 ## 4. Vercel
 
