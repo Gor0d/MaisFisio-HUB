@@ -1,4 +1,6 @@
-# MaisFisio WEB — Sistema Online de Indicadores Assistenciais
+# MaisFisio HUB — Sistema Online de Indicadores Assistenciais
+
+> **Adendo (17-18/07/2026 — implementado):** o sistema tornou-se **multi-unidade**. Nova entidade `units` (Hospital Galileu, Santa Terezinha, futuras); setores, pacientes, lançamentos e avaliações pertencem a uma unidade; profissionais podem atuar em várias unidades (`collaborator_units`); acesso por unidade (`profile_units`); novo papel `super_admin` (matriz) com portal de unidades e visão consolidada no dashboard. Catálogos clínicos (indicadores e escalas) permanecem globais para permitir comparação entre unidades. Todo o histórico da planilha pertence ao Galileu. Domínio planejado: `hub.maisfisio.com.br` (CNAME na Locaweb → Vercel).
 
 ## Contexto
 

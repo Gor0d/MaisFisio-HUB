@@ -14,12 +14,14 @@ Sistema web (desktop + celular) de indicadores assistenciais para a MaisFisio no
 - Deploy: Vercel (app) + Supabase cloud (dados)
 
 ## Regras de domínio essenciais
-1. **Totais e flags de melhora das escalas são sempre calculados**, nunca digitados (Barthel 0–100; MRC 0–60; Melhoria UTI máx. 33; melhora = saída > entrada do mesmo paciente).
-2. **Colaborador e setor são dropdowns** (tabelas `collaborators` e `sectors`), nunca texto livre — essa é a principal causa de sujeira na planilha atual.
-3. **Indicadores são dados, não colunas**: tabela `indicators` + `production_values` (EAV controlado). Adicionar indicador novo = INSERT no seed, sem migração de schema.
-4. **LGPD**: paciente identificado só por iniciais + nº de registro/prontuário + idade. Nunca nome completo.
-5. Taxas derivadas (ex.: índice de melhoria da Fono = melhorias ÷ altas) calculadas em views SQL com proteção contra divisão por zero.
-6. Turnos: MANHÃ / TARDE / NOITE. Tipos de setor: Médica / Ortopédica / Cirúrgica.
+1. **Multi-unidade (multi-tenant)**: tabela `units` (Hospital Galileu, Santa Terezinha, futuras). Setores, pacientes, lançamentos e avaliações pertencem a uma unidade; catálogos clínicos (serviços, indicadores, escalas) são globais. Profissional pode atuar em várias unidades (`collaborator_units`); acesso de usuário por unidade (`profile_units`). Papel `super_admin` = matriz, enxerga tudo; `admin` = unidade. Prontuário é único por (unidade, número).
+2. **Totais e flags de melhora das escalas são sempre calculados**, nunca digitados (Barthel 0–100; MRC 0–60; Melhoria UTI máx. 33; melhora = saída > entrada do mesmo paciente).
+3. **Colaborador e setor são dropdowns** (tabelas `collaborators` e `sectors`), nunca texto livre — essa é a principal causa de sujeira na planilha atual.
+4. **Indicadores são dados, não colunas**: tabela `indicators` + `production_values` (EAV controlado). Adicionar indicador novo = INSERT no seed, sem migração de schema.
+5. **LGPD**: paciente identificado só por iniciais + nº de registro/prontuário + idade. Nunca nome completo. Service worker não pode cachear páginas autenticadas.
+6. Taxas derivadas (ex.: índice de melhoria da Fono = melhorias ÷ altas) calculadas em views SQL com proteção contra divisão por zero.
+7. Turnos: MANHÃ / TARDE / NOITE. Tipos de setor: Médica / Ortopédica / Cirúrgica.
+8. Uso interno da equipe: sem cadastro público, sem indexação (robots noindex); segurança = convite + RLS por unidade.
 
 ## Fases (implementar nesta ordem)
 1. **MVP**: scaffold + migrações + seed + auth/papéis (admin, coordenador, colaborador) + lançamento de produção da Fisioterapia + 3 escalas + dashboard + `scripts/import-xlsx.ts`

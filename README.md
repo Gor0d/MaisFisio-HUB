@@ -1,6 +1,8 @@
-# MaisFisio WEB
+# MaisFisio HUB
 
-Sistema web/PWA de indicadores assistenciais do Hospital Público Estadual Galileu. A aplicação substitui a coleta manual em planilha, padroniza colaboradores e setores, calcula as escalas clínicas e oferece dashboard, metas, relatórios e auditoria.
+Sistema web/PWA **multi-unidade** de indicadores assistenciais da MaisFisio (Hospital Público Estadual Galileu, Unidade Santa Terezinha e futuras). A aplicação substitui a coleta manual em planilha, padroniza colaboradores e setores por unidade, calcula as escalas clínicas (Barthel, MRC, Melhoria Funcional da UTI) e oferece dashboard por unidade — com visão consolidada para a matriz —, metas, relatórios e auditoria.
+
+Uso interno da equipe: acesso somente por convite, sem cadastro público e sem indexação por buscadores.
 
 ## Stack
 

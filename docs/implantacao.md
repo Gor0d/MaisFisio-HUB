@@ -54,7 +54,22 @@ O DNS de `maisfisio.com.br` fica na Locaweb (ns1/ns2/ns3.locaweb.com.br), onde t
 
 Atenção: o registro do domínio `maisfisio.com.br` expira em 04/09/2026 — lembrar o titular de renovar. Alternativa com domínio próprio: `maisfisiohub.com.br` está disponível no Registro.br (R$ 40/ano).
 
-## 5. Verificação antes de liberar
+## 5. Checklist de segurança no painel Supabase (go-live)
+
+Fazer uma única vez, em **Authentication → Settings** do projeto:
+
+- [ ] **Minimum password length**: 8 (o formulário já exige, mas o servidor deve exigir também)
+- [ ] **Leaked password protection**: ativar (bloqueia senhas presentes em vazamentos conhecidos — verificação HaveIBeenPwned)
+- [ ] **Disable new user signups**: ativar "Only invited users" / desabilitar cadastro público — o acesso é exclusivamente por convite
+- [ ] **Site URL e Redirect URLs**: somente `https://hub.maisfisio.com.br` (e `http://localhost:3000` se quiser ambiente local)
+- [ ] **SMTP próprio** (Resend/Brevo): configurar para os e-mails de convite não caírem em spam
+- [ ] Futuro: ativar **MFA (TOTP)** para super_admin e admins
+
+Monitoramento: cadastrar `https://hub.maisfisio.com.br/api/health` no UptimeRobot (gratuito) com alerta por e-mail. O endpoint é público e não expõe dados.
+
+Distribuir o [guia de segurança da equipe](guia-seguranca-equipe.md) junto com os convites.
+
+## 6. Verificação antes de liberar
 
 - Fluxo desktop e celular: login → produção → Barthel entrada e saída → dashboard.
 - Conferir manualmente três pacientes das escalas contra a planilha.
