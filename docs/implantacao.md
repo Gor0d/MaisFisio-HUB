@@ -44,6 +44,16 @@ O importador usa lotes, ignora abas ocultas duplicadas, recalcula as pontuaçõe
 
 Importe o repositório na Vercel, cadastre as quatro variáveis de `.env.example` (incluindo a chave de serviço apenas no servidor) e faça o deploy. Em Supabase Auth, inclua o domínio de produção nas URLs permitidas de redirecionamento.
 
+### Domínio: hub.maisfisio.com.br
+
+O DNS de `maisfisio.com.br` fica na Locaweb (ns1/ns2/ns3.locaweb.com.br), onde também está hospedado o site institucional. Para colocar o sistema em `hub.maisfisio.com.br` sem tocar no site atual:
+
+1. Quem administra o painel Locaweb da MaisFisio cria um registro **CNAME** com nome `hub` apontando para `cname.vercel-dns.com`.
+2. No projeto da Vercel: Settings → Domains → adicionar `hub.maisfisio.com.br` (SSL é emitido automaticamente).
+3. Definir `NEXT_PUBLIC_APP_URL=https://hub.maisfisio.com.br` na Vercel e incluir essa URL nos redirects permitidos do Supabase Auth.
+
+Atenção: o registro do domínio `maisfisio.com.br` expira em 04/09/2026 — lembrar o titular de renovar. Alternativa com domínio próprio: `maisfisiohub.com.br` está disponível no Registro.br (R$ 40/ano).
+
 ## 5. Verificação antes de liberar
 
 - Fluxo desktop e celular: login → produção → Barthel entrada e saída → dashboard.
