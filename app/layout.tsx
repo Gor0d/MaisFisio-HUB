@@ -8,6 +8,8 @@ export const metadata: Metadata = {
   applicationName: "MaisFisio",
   manifest: "/manifest.webmanifest",
   icons: { icon: "/icon.svg", apple: "/icon.svg" },
+  // Sistema interno da equipe: não deve aparecer em buscadores.
+  robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } },
 };
 
 export const viewport: Viewport = { themeColor: "#087f5b", width: "device-width", initialScale: 1 };
