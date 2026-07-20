@@ -138,7 +138,13 @@ export function parseScaleSheet(workbook: XLSX.WorkBook, type: ScaleImport["scal
     if (!date.date || !moment || !initials || !recordNumber || !sector || answers.length !== config.items.length) { issues.push({ sheet: config.sheet, row: index + 1, level: "rejeitada", reason: `Avaliação incompleta/inválida: data=${String(row[config.date])}, prontuário=${recordNumber}, respostas=${answers.length}/${config.items.length}` }); continue; }
     if (date.corrected) issues.push({ sheet: config.sheet, row: index + 1, level: "corrigida", reason: `Ano corrigido (${date.corrected})`, original: String(row[config.date]) });
     const eventDate = config.event >= 0 ? parseDate(row[config.event]).date : null;
-    result.push({ source: config.sheet, row: index + 1, scaleType: type, date: date.date, initials, recordNumber, moment, sector, sectorType: config.type >= 0 ? canonicalSectorType(row[config.type]) : null, collaborator: config.collaborator >= 0 ? canonicalCollaborator(row[config.collaborator]) || null : null, attendanceNumber: config.attendance >= 0 ? normalizeText(row[config.attendance]) || null : null, age: config.age >= 0 ? parseNumber(row[config.age]) : null, cid: config.cid >= 0 ? normalizeText(row[config.cid]) || null : null, eventDate, notes: config.notes >= 0 ? normalizeText(row[config.notes]) || null : null, answers });
+    // Idade fora de 0-130 (ex.: ano de nascimento digitado no campo) vira nula e fica para revisão.
+    let age = config.age >= 0 ? parseNumber(row[config.age]) : null;
+    if (age !== null && (age < 0 || age > 130)) { issues.push({ sheet: config.sheet, row: index + 1, level: "revisao", reason: `Idade implausível (${age}) removida; confirmar no prontuário`, original: String(row[config.age]) }); age = null; }
+    // CID digitado como diagnóstico completo estoura o limite de 120 do banco: trunca e reporta.
+    let cid = config.cid >= 0 ? normalizeText(row[config.cid]) || null : null;
+    if (cid && cid.length > 120) { issues.push({ sheet: config.sheet, row: index + 1, level: "corrigida", reason: `CID truncado para 120 caracteres (original com ${cid.length})`, original: cid }); cid = cid.slice(0, 120); }
+    result.push({ source: config.sheet, row: index + 1, scaleType: type, date: date.date, initials, recordNumber, moment, sector, sectorType: config.type >= 0 ? canonicalSectorType(row[config.type]) : null, collaborator: config.collaborator >= 0 ? canonicalCollaborator(row[config.collaborator]) || null : null, attendanceNumber: config.attendance >= 0 ? normalizeText(row[config.attendance]) || null : null, age, cid, eventDate, notes: config.notes >= 0 ? (normalizeText(row[config.notes]) || null)?.slice(0, 2000) ?? null : null, answers });
   }
   return result;
 }
@@ -187,7 +193,21 @@ async function upload(production: ProductionImport[], scales: ScaleImport[]) {
     if (values.length) { const result = await client.from("production_values").upsert(values, { onConflict: "record_id,indicator_id" }); if (result.error) throw result.error; }
   });
   const itemMap = new Map(items.map((x) => [`${x.scale_type}:${x.code}`, x.id])); const optionMap = new Map(options.map((x) => [`${x.item_id}:${x.points}`, x.id]));
-  await batches(scales, 200, async (batch) => {
+  // Respostas cuja pontuação não existe no catálogo do item (ex.: valor digitado
+  // fora da escala) invalidam a avaliação inteira: descartamos e reportamos,
+  // em vez de deixar o trigger do banco abortar o lote.
+  const offCatalog: ScaleImport[] = [];
+  const importable = scales.filter((x) => {
+    const ok = x.answers.every((answer) => { const itemId = itemMap.get(`${x.scaleType}:${answer.itemCode}`); return itemId && optionMap.has(`${itemId}:${answer.points}`); });
+    if (!ok) offCatalog.push(x);
+    return ok;
+  });
+  if (offCatalog.length) {
+    console.log(`Avaliações descartadas por opção fora do catálogo: ${offCatalog.length}`);
+    offCatalog.slice(0, 20).forEach((x) => { const bad = x.answers.filter((a) => { const itemId = itemMap.get(`${x.scaleType}:${a.itemCode}`); return !itemId || !optionMap.has(`${itemId}:${a.points}`); }); console.log(`  ${x.source} linha ${x.row}: ${bad.map((a) => `${a.itemCode}=${a.points}`).join(", ")}`); });
+    if (offCatalog.length > 20) console.log(`  ... e mais ${offCatalog.length - 20}`);
+  }
+  await batches(importable, 200, async (batch) => {
     const assessments = batch.map((x) => ({ id: stableUuid(`scale:${x.source}:${x.row}:${x.recordNumber}`), unit_id: unitId, scale_type: x.scaleType, patient_id: patientMap.get(x.recordNumber), collaborator_id: x.collaborator ? collaboratorMap.get(`${serviceMap.get("fisioterapia")}:${normalizeKey(x.collaborator)}`) : null, assessment_date: x.date, moment: x.moment, sector_id: sectorMap.get(x.sector), sector_type: x.sectorType, attendance_number: x.attendanceNumber, cid: x.cid, event_date: x.eventDate, notes: x.notes, created_by: actor }));
     const { error } = await client.from("scale_assessments").upsert(assessments, { onConflict: "id" }); if (error) throw error;
     const scores = batch.flatMap((x, index) => x.answers.map((answer) => { const itemId = itemMap.get(`${x.scaleType}:${answer.itemCode}`); return { assessment_id: assessments[index].id, item_id: itemId, option_id: optionMap.get(`${itemId}:${answer.points}`) }; }));
