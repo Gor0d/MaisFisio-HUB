@@ -36,8 +36,10 @@ export function ScaleForm({ type, units, defaultUnitId, items, sectors, collabor
   const form = useForm<InputValues, unknown, Values>({ resolver: zodResolver(scaleAssessmentSchema), defaultValues: { unit_id: defaultUnitId, scale_type: type, initials: "", record_number: "", assessment_date: todayISO(), moment: "entrada", sector_id: "", attendance_number: "", cid: "", notes: "", answers: items.map((item) => ({ item_id: item.id, option_id: "" })) } });
   const unitId = form.watch("unit_id");
   const unitCollaboratorIds = useMemo(() => new Set(collaboratorUnits.filter((x) => x.unit_id === unitId).map((x) => x.collaborator_id)), [collaboratorUnits, unitId]);
+  // Sem useMemo: o watch do react-hook-form devolve a MESMA referência de array
+  // mutada, então o memo nunca recalculava e o total ficava travado em 0.
   const answers = form.watch("answers");
-  const total = useMemo(() => answers.reduce((sum, answer) => { const item = items.find((x) => x.id === answer.item_id); return sum + (item?.scale_item_options.find((x) => x.id === answer.option_id)?.points ?? 0); }, 0), [answers, items]);
+  const total = answers.reduce((sum, answer) => { const item = items.find((x) => x.id === answer.item_id); return sum + (item?.scale_item_options.find((x) => x.id === answer.option_id)?.points ?? 0); }, 0);
   const answered = answers.filter((x) => x.option_id).length;
 
   const moment = form.watch("moment");

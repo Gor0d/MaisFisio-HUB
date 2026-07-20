@@ -18,7 +18,13 @@ export function todayISO() {
 }
 
 export function friendlyError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error ?? "");
+  // Erros do Supabase (PostgrestError) são objetos simples, não instâncias de Error.
+  const message = error instanceof Error ? error.message
+    : typeof error === "object" && error !== null && "message" in error ? String((error as { message: unknown }).message)
+    : String(error ?? "");
+  if (message.includes("scale_assessments_unique_event_idx")) {
+    return "Já existe uma avaliação desta escala para este paciente, momento e data. Confira no dashboard antes de salvar novamente.";
+  }
   if (message.includes("duplicate key") || message.includes("production_records_service_id")) {
     return "Já existe um lançamento com estes dados.";
   }
