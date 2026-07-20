@@ -4,8 +4,8 @@ import { Activity, ArrowDownRight, ArrowUpRight, CalendarDays, Download, Trendin
 import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { NamedDateField } from "@/components/ui/date-field";
 import { Select } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { ptBRDate, ptBRNumber } from "@/lib/utils";
 
 type Metric = { record_date: string; indicator_code: string; indicator_name: string; kind: string; value: number | string | null };
@@ -47,8 +47,8 @@ export function DashboardView({ metrics, scales, services, sectors, filters }: {
         <Button variant="outline" onClick={exportCsv} disabled={!metrics.length}><Download className="size-4" />Exportar CSV</Button>
       </header>
       <Card><CardContent className="pt-5 md:pt-6"><form className="form-grid items-end">
-        <div className="field col-span-2"><label className="text-xs font-semibold text-muted-foreground">De</label><Input type="date" name="de" defaultValue={filters.de} /></div>
-        <div className="field col-span-2"><label className="text-xs font-semibold text-muted-foreground">Até</label><Input type="date" name="ate" defaultValue={filters.ate} /></div>
+        <div className="field col-span-2"><label className="text-xs font-semibold text-muted-foreground">De</label><NamedDateField name="de" defaultIso={filters.de} /></div>
+        <div className="field col-span-2"><label className="text-xs font-semibold text-muted-foreground">Até</label><NamedDateField name="ate" defaultIso={filters.ate} /></div>
         <div className="field col-span-3"><label className="text-xs font-semibold text-muted-foreground">Serviço</label><Select name="servico" defaultValue={filters.servico ?? ""}><option value="">Todos</option>{services.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select></div>
         <div className="field col-span-3"><label className="text-xs font-semibold text-muted-foreground">Setor</label><Select name="setor" defaultValue={filters.setor ?? ""}><option value="">Todos</option>{sectors.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select></div>
         <Button type="submit" className="col-span-2"><CalendarDays className="size-4" />Aplicar</Button>

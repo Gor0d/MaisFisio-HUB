@@ -9,6 +9,7 @@ import { z } from "zod";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DateField } from "@/components/ui/date-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -50,7 +51,7 @@ export function ProductionForm({ units, defaultUnitId, services, sectors, servic
       {units.length > 1 ? <div className="field col-span-4"><Label>Unidade</Label><Select {...form.register("unit_id")}>{units.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select></div> : <input type="hidden" {...form.register("unit_id")} />}
       <div className="field col-span-4"><Label>Serviço</Label><Select {...form.register("service_id")} disabled={lockService}><option value="">Selecione</option>{services.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select>{lockService && <input type="hidden" {...form.register("service_id")} />}</div>
       {contexts.length > 1 && <div className="field col-span-4"><Label>Contexto</Label><Select {...form.register("context")}><option value="geral">Atendimento geral</option><option value="enfermaria">Enfermaria</option><option value="ambulatorio">Ambulatório</option><option value="uti">UTI</option></Select></div>}
-      <div className="field col-span-4"><Label>Data</Label><Input type="date" max={todayISO()} {...form.register("record_date")} /></div>
+      <div className="field col-span-4"><Label>Data</Label><DateField iso={form.getValues("record_date")} onIso={(v) => form.setValue("record_date", v, { shouldValidate: true })} maxIso={todayISO()} /></div>
       <div className="field col-span-4"><Label>Colaborador(a)</Label><Select {...form.register("collaborator_id")}><option value="">Selecione</option>{collaborators.filter((x) => x.service_id === serviceId && unitCollaboratorIds.has(x.id)).map((x) => <option key={x.id} value={x.id}>{x.canonical_name}</option>)}</Select></div>
       <div className="field col-span-3"><Label>Turno</Label><Select {...form.register("shift")}><option>MANHÃ</option><option>TARDE</option><option>NOITE</option></Select></div>
       <div className="field col-span-3"><Label>Setor</Label><Select {...form.register("sector_id")}><option value="">Selecione</option>{sectors.filter((x) => x.unit_id === unitId && allowedSectorIds.has(x.id)).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select></div>

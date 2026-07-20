@@ -55,7 +55,9 @@ export function parseDate(value: Cell): { date: string | null; corrected?: strin
 
 function validateDate(year: number, month: number, day: number): { date: string | null } {
   const date = new Date(Date.UTC(year, month - 1, day));
-  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day || year < 2020 || year > new Date().getUTCFullYear() + 1) return { date: null };
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day || year < 2020) return { date: null };
+  // Produção assistencial não existe no futuro: datas além de hoje são erro de digitação.
+  if (date.toISOString().slice(0, 10) > new Date().toISOString().slice(0, 10)) return { date: null };
   return { date: date.toISOString().slice(0, 10) };
 }
 
