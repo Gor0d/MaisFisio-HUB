@@ -42,7 +42,7 @@ Itens de P2/P3 (auditoria, recuperação de senha, PDF, PWA, testes formais, go-
 
 ## P1 — Multi-unidade e administração
 
-- [ ] (Codex) Completar o cadastro de setores por serviço.
+- [~] (Codex) Completar o cadastro de setores por serviço.
   - Ao criar um setor, permitir selecionar os serviços habilitados e gravar `service_sectors`.
   - Permitir editar posteriormente os serviços habilitados.
   - Critério de aceite: um setor novo da Santa Terezinha aparece imediatamente nos formulários dos serviços selecionados.
