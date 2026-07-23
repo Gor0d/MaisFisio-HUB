@@ -21,7 +21,7 @@ export default async function AdminPage() {
     supabase.from("collaborator_units").select("collaborator_id,unit_id"),
     supabase.from("indicators").select("id,code,name,service_id,context,kind,active,services(name)").order("name"),
     supabase.from("sectors").select("id,unit_id,name").eq("active", true).order("name"),
-    supabase.from("indicator_targets").select("id,target_value,comparison,valid_from,valid_until,indicator_id,sector_id,indicators(name),sectors(name)").order("valid_from", { ascending: false }),
+    supabase.from("indicator_targets").select("id,target_value,comparison,valid_from,valid_until,indicator_id,unit_id,sector_id,indicators(name),sectors(name),units(name)").order("valid_from", { ascending: false }),
     supabase.from("audit_logs").select("id,table_name,action,changed_at,record_id,profiles:changed_by(full_name)").order("changed_at", { ascending: false }).limit(100),
   ]);
   const units = await getUserUnits(supabase, profile.data as Profile);

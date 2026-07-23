@@ -17,7 +17,9 @@ export default async function ProtectedLayout({ children }: { children: React.Re
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) redirect("/login");
     const { data } = await supabase.from("profiles").select("user_id, full_name, role, service_id, active").eq("user_id", user.id).single();
-    if (data && !data.active) redirect("/login?erro=inativo");
+    // Sem signOut, a sessão permanece válida e o middleware manda o usuário
+    // de volta para /dashboard assim que ele chega em /login — loop infinito.
+    if (data && !data.active) { await supabase.auth.signOut(); redirect("/login?erro=inativo"); }
     profile = (data ?? { user_id: user.id, full_name: user.email?.split("@")[0] ?? "Usuário", role: "colaborador", service_id: null }) as Profile;
     units = await getUserUnits(supabase, profile);
     activeUnitId = await getActiveUnitId(units, profile);

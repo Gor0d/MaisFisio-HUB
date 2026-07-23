@@ -3,13 +3,18 @@ import Image from "next/image";
 import { Activity, BarChart3, ShieldCheck } from "lucide-react";
 import { LoginForm } from "@/components/login-form";
 import { SetupRequired } from "@/components/setup-required";
+import { Alert } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 export const metadata: Metadata = { title: "Entrar" };
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ redirect?: string }> }) {
-  const { redirect } = await searchParams;
+const ERROR_MESSAGES: Record<string, string> = {
+  inativo: "Sua conta está inativa. Procure o administrador da sua unidade para reativar o acesso.",
+};
+
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ redirect?: string; erro?: string }> }) {
+  const { redirect, erro } = await searchParams;
   const configured = isSupabaseConfigured();
   return (
     <main className="grid min-h-screen lg:grid-cols-[1.05fr_.95fr]">
@@ -45,6 +50,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             </CardHeader>
             <CardContent className="grid gap-5 px-0 sm:px-6">
               {!configured && <SetupRequired />}
+              {erro && ERROR_MESSAGES[erro] && <Alert className="border-amber-200 bg-amber-50 text-amber-900">{ERROR_MESSAGES[erro]}</Alert>}
               <LoginForm redirectTo={redirect} disabled={!configured} />
             </CardContent>
           </Card>

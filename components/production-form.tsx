@@ -20,9 +20,11 @@ import { friendlyError, todayISO } from "@/lib/utils";
 import { productionSchema } from "@/lib/validation";
 
 type Values = z.infer<typeof productionSchema>;
-const DRAFT_KEY = "maisfisio:production-draft";
 
-export function ProductionForm({ units, defaultUnitId, services, sectors, serviceSectors, collaborators, collaboratorUnits, indicators, defaultServiceId, lockService }: { units: Unit[]; defaultUnitId?: string; services: Service[]; sectors: Sector[]; serviceSectors: { service_id: string; sector_id: string }[]; collaborators: Collaborator[]; collaboratorUnits: CollaboratorUnit[]; indicators: Indicator[]; defaultServiceId?: string; lockService: boolean }) {
+export function ProductionForm({ userId, units, defaultUnitId, services, sectors, serviceSectors, collaborators, collaboratorUnits, indicators, defaultServiceId, lockService }: { userId: string; units: Unit[]; defaultUnitId?: string; services: Service[]; sectors: Sector[]; serviceSectors: { service_id: string; sector_id: string }[]; collaborators: Collaborator[]; collaboratorUnits: CollaboratorUnit[]; indicators: Indicator[]; defaultServiceId?: string; lockService: boolean }) {
+  // Chave por usuário: em computador compartilhado, o próximo colaborador que
+  // fizer login nunca deve ver ou herdar o rascunho de quem usou antes.
+  const draftKey = `maisfisio:production-draft:${userId}`;
   const form = useForm<Values>({ resolver: zodResolver(productionSchema), defaultValues: { unit_id: defaultUnitId, service_id: defaultServiceId, record_date: todayISO(), shift: "MANHÃ", sector_id: "", collaborator_id: "", context: "geral", notes: "", values: [] } });
   const unitId = form.watch("unit_id"); const serviceId = form.watch("service_id"); const context = form.watch("context");
   const contexts = useMemo(() => [...new Set(indicators.filter((i) => i.service_id === serviceId).map((i) => i.context))], [indicators, serviceId]);
@@ -32,17 +34,17 @@ export function ProductionForm({ units, defaultUnitId, services, sectors, servic
 
   useEffect(() => { if (!contexts.includes(context) && contexts[0]) form.setValue("context", contexts[0]); }, [contexts, context, form]);
   useEffect(() => {
-    const raw = localStorage.getItem(DRAFT_KEY); if (!raw) return;
-    try { const draft = JSON.parse(raw); if (draft.service_id && confirm("Há um rascunho de produção neste dispositivo. Deseja restaurá-lo?")) form.reset(draft); } catch { localStorage.removeItem(DRAFT_KEY); }
-  }, [form]);
-  useEffect(() => { const subscription = form.watch((value) => localStorage.setItem(DRAFT_KEY, JSON.stringify(value))); return () => subscription.unsubscribe(); }, [form]);
+    const raw = localStorage.getItem(draftKey); if (!raw) return;
+    try { const draft = JSON.parse(raw); if (draft.service_id && confirm("Há um rascunho de produção neste dispositivo. Deseja restaurá-lo?")) form.reset(draft); } catch { localStorage.removeItem(draftKey); }
+  }, [form, draftKey]);
+  useEffect(() => { const subscription = form.watch((value) => localStorage.setItem(draftKey, JSON.stringify(value))); return () => subscription.unsubscribe(); }, [form, draftKey]);
 
   async function submit(values: Values) {
     const supabase = createClient();
     const payload = { ...values, values: visibleIndicators.map((indicator) => ({ indicator_id: indicator.id, value: String((values.values as { indicator_id: string; value: string }[])?.find((x) => x.indicator_id === indicator.id)?.value ?? "") })).filter((x) => x.value !== "") };
     const { error } = await supabase.rpc("save_production_record", { payload });
     if (error) { toast.error(friendlyError(error)); return; }
-    localStorage.removeItem(DRAFT_KEY); toast.success("Produção registrada com sucesso.");
+    localStorage.removeItem(draftKey); toast.success("Produção registrada com sucesso.");
     form.reset({ ...values, notes: "", values: [], record_date: todayISO() });
   }
 
