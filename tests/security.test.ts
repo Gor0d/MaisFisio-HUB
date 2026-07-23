@@ -1,8 +1,13 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-const sql = readFileSync(path.resolve("supabase/migrations/202607160002_security_views.sql"), "utf8");
+const migrationsDirectory = path.resolve("supabase/migrations");
+const sql = readdirSync(migrationsDirectory)
+  .filter((file) => file.endsWith(".sql"))
+  .sort()
+  .map((file) => readFileSync(path.join(migrationsDirectory, file), "utf8"))
+  .join("\n");
 
 describe("RLS", () => {
   it("habilita RLS nas tabelas clínicas", () => {
@@ -24,5 +29,7 @@ describe("RLS", () => {
     expect(sql).toContain("public.is_member_of(unit_id)");
     expect(sql).toContain("public.is_member_of(r.unit_id)");
     expect(sql).toContain("public.is_member_of(a.unit_id)");
+    expect(sql).toContain('create policy "members read units"');
+    expect(sql).toContain('create policy "unit and service members read collaborators"');
   });
 });
