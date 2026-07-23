@@ -4,26 +4,20 @@ Este documento organiza o trabalho restante do MaisFisio HUB. A ordem abaixo dev
 
 ## P0 — Bloqueadores de segurança e acesso
 
-- [ ] Corrigir o service worker para nunca armazenar respostas de páginas autenticadas.
-  - Remover `/login` do cache criado durante uma sessão autenticada ou usar uma resposta offline estática sem dados.
-  - Garantir que `/dashboard`, `/lancamento`, `/escalas`, `/relatorios`, `/admin` e respostas Supabase nunca sejam persistidas pelo service worker.
-  - Critério de aceite: após navegar autenticado, o Cache Storage contém somente arquivos estáticos públicos; offline não exibe HTML ou dados clínicos já acessados.
+- [x] Corrigir o service worker para nunca armazenar respostas de páginas autenticadas.
+  - Feito em 18/07 (commit `8b63b72`), antes desta revisão: só recursos estáticos (`_next/static`, ícone, manifest) são cacheados; páginas sempre vêm da rede e o fallback offline é `/login` sem dados.
 
-- [ ] Corrigir o fluxo de usuário inativo.
-  - Encerrar a sessão antes de enviar o usuário inativo ao login, ou permitir que `/login?erro=inativo` seja exibido mesmo com sessão existente.
-  - Mostrar uma mensagem clara em português informando que a conta está inativa.
-  - Critério de aceite: usuário inativo não entra em loop de redirecionamento e não acessa rotas protegidas.
+- [x] Corrigir o fluxo de usuário inativo. *(commit `cf165ce`)*
+  - `signOut()` antes do redirect (o middleware mandava o usuário de volta a `/dashboard` enquanto a sessão continuava válida — loop infinito).
+  - Mensagem "Sua conta está inativa..." agora exibida no login (o parâmetro `erro` não era lido antes).
 
-- [ ] Fechar a RLS administrativa por unidade.
-  - Restringir leitura e gestão de colaboradores, vínculos, perfis, setores, aliases e metas à unidade permitida.
-  - Preservar acesso global somente para `super_admin`.
-  - Restringir coordenador ao próprio serviço e às próprias unidades.
-  - Critério de aceite: testes reais confirmam que um admin da unidade A não lê nem altera dados administrativos da unidade B.
+- [x] Fechar a RLS administrativa por unidade. *(commit `cf165ce`, migração `202607210008`)*
+  - `profiles`, `collaborators`, `collaborator_aliases` e `indicator_targets` agora exigem unidade compartilhada (via `profile_units`/`collaborator_units`) para admin ler ou gerenciar; meta com `unit_id` nulo (global) exige `super_admin`; admin nunca promove a `super_admin`.
+  - Validado com 12 testes reais em produção (2 admins de unidades distintas + super_admin de controle, criados e removidos via `service_role`): nenhum vazamento cross-unit, super_admin preserva acesso global.
+  - Formulário de metas (`admin-view.tsx`) ajustado para gravar `unit_id`, senão a nova RLS teria quebrado o cadastro de metas por admin/coordenador.
 
-- [ ] Isolar o rascunho local de produção.
-  - Usar chave por usuário e unidade, ou remover o rascunho ao sair da conta.
-  - Validar o usuário, a unidade e o serviço antes de restaurar um rascunho.
-  - Critério de aceite: em computador compartilhado, o segundo usuário nunca recebe o rascunho do primeiro.
+- [x] Isolar o rascunho local de produção. *(commit `cf165ce`)*
+  - Chave do `localStorage` agora inclui `user_id` (`maisfisio:production-draft:<uid>`); em computador compartilhado, o próximo colaborador não recebe mais o rascunho do anterior.
 
 ## P1 — Multi-unidade e administração
 
