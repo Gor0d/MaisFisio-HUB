@@ -3,7 +3,11 @@
 ## O que é este projeto
 Sistema web (desktop + celular) de indicadores assistenciais para a MaisFisio no Hospital Público Estadual Galileu, substituindo a coleta por planilha (`Hospital Público Estadual Galileu - Produção Assistencial.xlsx`, na raiz — NÃO modificar nem apagar este arquivo; é a fonte dos dados históricos).
 
+## Estado atual: MVP pronto, em fase de hardening para go-live
+O MVP (fases 1–3 abaixo) está implementado, com dados reais importados no Supabase de produção. **A lista de trabalho ativa agora é `docs/todo-go-live.md`** — leia esse arquivo primeiro, não este. Ele tem uma convenção de reivindicar itens com `[~] (SeuNome)` para Claude e Codex trabalharem em paralelo sem colidir; siga-a antes de tocar em qualquer item.
+
 ## Documentos de referência (ler antes de codificar)
+- `docs/todo-go-live.md` — **lista de tarefas ativa**, priorizada, com convenção de coordenação entre agentes
 - `docs/plano-arquitetura.md` — plano aprovado: arquitetura, modelo de dados, telas, fases, verificação
 - `docs/indicadores.md` — catálogo completo dos indicadores por serviço e definições exatas das escalas Barthel, MRC e Melhoria Funcional da UTI (textos e pontuações para o seed)
 
