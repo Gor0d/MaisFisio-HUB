@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Building2, ClipboardList, Gauge, LoaderCircle, Plus, Settings2, UserPlus, Users } from "lucide-react";
+import { Building2, ClipboardList, Gauge, LoaderCircle, Pencil, Plus, Settings2, UserPlus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,14 +18,16 @@ type UnitRow = { id: string; code: string; name: string };
 type CollaboratorUnitRow = { collaborator_id: string; unit_id: string };
 type CollaboratorRow = { id: string; canonical_name: string; service_id: string; user_id: string | null; active: boolean; services?: { name: string }[] | null };
 type IndicatorRow = { id: string; name: string; kind: string; context: string; active: boolean; services?: { name: string }[] | null };
-type SectorRow = { id: string; unit_id?: string; name: string };
+type SectorRow = { id: string; unit_id: string; code: string; name: string; context: string };
+type ServiceSectorRow = { service_id: string; sector_id: string };
 type TargetRow = { id: string; target_value: number; comparison: string; valid_from: string; unit_id: string | null; indicators?: { name: string }[] | null; sectors?: { name: string }[] | null; units?: { name: string }[] | null };
 type AuditRow = { id: number; changed_at: string; action: string; table_name: string; record_id: string | null; profiles?: { full_name: string }[] | null };
 
-export function AdminView({ role, currentServiceId, units, activeUnitId, services, collaborators, collaboratorUnits, indicators, sectors, targets, audit }: { role: string; currentServiceId: string | null; units: UnitRow[]; activeUnitId: string | null; services: ServiceRow[]; collaborators: CollaboratorRow[]; collaboratorUnits: CollaboratorUnitRow[]; indicators: IndicatorRow[]; sectors: SectorRow[]; targets: TargetRow[]; audit: AuditRow[] }) {
+export function AdminView({ role, currentServiceId, units, activeUnitId, services, collaborators, collaboratorUnits, indicators, sectors, serviceSectors, targets, audit }: { role: string; currentServiceId: string | null; units: UnitRow[]; activeUnitId: string | null; services: ServiceRow[]; collaborators: CollaboratorRow[]; collaboratorUnits: CollaboratorUnitRow[]; indicators: IndicatorRow[]; sectors: SectorRow[]; serviceSectors: ServiceSectorRow[]; targets: TargetRow[]; audit: AuditRow[] }) {
   const [tab, setTab] = useState("colaboradores");
-  const tabs = [{ id: "colaboradores", label: "Colaboradores", icon: Users }, ...(role === "super_admin" ? [{ id: "unidades", label: "Unidades", icon: Building2 }] : []), { id: "metas", label: "Metas", icon: Gauge }, { id: "indicadores", label: "Indicadores", icon: Settings2 }, { id: "auditoria", label: "Auditoria", icon: ClipboardList }];
-  return <div className="grid gap-6"><header><h1 className="page-title">Administração</h1><p className="page-description">Gerencie unidades, acessos e catálogos do sistema.</p></header><div className="flex gap-2 overflow-x-auto pb-1">{tabs.map(({ id, label, icon: Icon }) => <Button key={id} variant={tab === id ? "default" : "outline"} onClick={() => setTab(id)}><Icon className="size-4" />{label}</Button>)}</div>{tab === "colaboradores" && <Collaborators role={role} currentServiceId={currentServiceId} units={units} activeUnitId={activeUnitId} services={services} collaborators={collaborators} collaboratorUnits={collaboratorUnits} />}{tab === "unidades" && <Units units={units} sectors={sectors} />}{tab === "metas" && <Targets role={role} units={units} activeUnitId={activeUnitId} indicators={indicators} sectors={sectors} targets={targets} />}{tab === "indicadores" && <Indicators indicators={indicators} />}{tab === "auditoria" && <Audit rows={audit} />}</div>;
+  const canManageSectors = role === "super_admin" || role === "admin";
+  const tabs = [{ id: "colaboradores", label: "Colaboradores", icon: Users }, ...(role === "super_admin" ? [{ id: "unidades", label: "Unidades", icon: Building2 }] : []), ...(canManageSectors ? [{ id: "setores", label: "Setores", icon: Building2 }] : []), { id: "metas", label: "Metas", icon: Gauge }, { id: "indicadores", label: "Indicadores", icon: Settings2 }, { id: "auditoria", label: "Auditoria", icon: ClipboardList }];
+  return <div className="grid gap-6"><header><h1 className="page-title">Administração</h1><p className="page-description">Gerencie unidades, acessos e catálogos do sistema.</p></header><div className="flex gap-2 overflow-x-auto pb-1">{tabs.map(({ id, label, icon: Icon }) => <Button key={id} variant={tab === id ? "default" : "outline"} onClick={() => setTab(id)}><Icon className="size-4" />{label}</Button>)}</div>{tab === "colaboradores" && <Collaborators role={role} currentServiceId={currentServiceId} units={units} activeUnitId={activeUnitId} services={services} collaborators={collaborators} collaboratorUnits={collaboratorUnits} />}{tab === "unidades" && <Units units={units} sectors={sectors} />}{tab === "setores" && <Sectors units={units} activeUnitId={activeUnitId} services={services} sectors={sectors} serviceSectors={serviceSectors} />}{tab === "metas" && <Targets role={role} units={units} activeUnitId={activeUnitId} indicators={indicators} sectors={sectors} targets={targets} />}{tab === "indicadores" && <Indicators indicators={indicators} />}{tab === "auditoria" && <Audit rows={audit} />}</div>;
 }
 
 // Portal da matriz: criar unidades e acompanhar seus setores. Setores são
@@ -40,18 +42,62 @@ function Units({ units, sectors }: { units: UnitRow[]; sectors: SectorRow[] }) {
     setPending(false);
     if (error) toast.error(error.message); else { toast.success("Unidade criada."); location.reload(); }
   }
-  async function createSector(formData: FormData) {
-    const name = String(formData.get("name") ?? "").trim();
-    const code = name.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-    const { error } = await createClient().from("sectors").insert({ unit_id: formData.get("unit_id"), name, code, context: formData.get("context") });
-    if (error) toast.error(error.message); else { toast.success("Setor criado."); location.reload(); }
-  }
   return <div className="grid gap-6 xl:grid-cols-[.8fr_1.2fr]">
     <div className="grid gap-6">
       <Card><CardHeader><CardTitle>Nova unidade</CardTitle><CardDescription>Hospitais e unidades atendidas pela MaisFisio.</CardDescription></CardHeader><CardContent><form action={createUnit} className="grid gap-4"><div className="field"><Label>Nome da unidade</Label><Input name="name" required placeholder="Ex.: Hospital Santa Terezinha" /></div><Button disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : <Plus className="size-4" />}Criar unidade</Button></form></CardContent></Card>
-      <Card><CardHeader><CardTitle>Novo setor</CardTitle><CardDescription>Cada unidade tem seus próprios setores.</CardDescription></CardHeader><CardContent><form action={createSector} className="grid gap-4"><div className="field"><Label>Unidade</Label><Select name="unit_id" required>{units.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select></div><div className="field"><Label>Nome do setor</Label><Input name="name" required placeholder="Ex.: Enfermaria Norte" /></div><div className="field"><Label>Contexto</Label><Select name="context"><option value="enfermaria">Enfermaria</option><option value="clinica">Clínica</option><option value="uti">UTI</option><option value="ambulatorio">Ambulatório</option></Select></div><Button><Plus className="size-4" />Criar setor</Button></form></CardContent></Card>
     </div>
     <Card><CardHeader><CardTitle>Unidades e setores</CardTitle><CardDescription>{units.length} unidades ativas</CardDescription></CardHeader><CardContent className="divide-y p-0">{units.map((unit) => { const unitSectors = sectors.filter((x) => x.unit_id === unit.id); return <div key={unit.id} className="px-5 py-4 md:px-6"><div className="flex items-center gap-3"><div className="grid size-9 place-items-center rounded-xl bg-secondary text-primary"><Building2 className="size-4" /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{unit.name}</p><p className="text-xs text-muted-foreground">{unitSectors.length ? unitSectors.map((x) => x.name).join(" · ") : "Nenhum setor cadastrado ainda"}</p></div><Badge>{unitSectors.length} setores</Badge></div></div>; })}</CardContent></Card>
+  </div>;
+}
+
+function Sectors({ units, activeUnitId, services, sectors, serviceSectors }: { units: UnitRow[]; activeUnitId: string | null; services: ServiceRow[]; sectors: SectorRow[]; serviceSectors: ServiceSectorRow[] }) {
+  const [editing, setEditing] = useState<SectorRow | null>(null);
+  const [pending, setPending] = useState(false);
+  const serviceNames = new Map(services.map((service) => [service.id, service.name]));
+
+  async function save(formData: FormData) {
+    const serviceIds = formData.getAll("service_ids").map(String);
+    if (!serviceIds.length) {
+      toast.error("Selecione ao menos um serviço.");
+      return;
+    }
+
+    setPending(true);
+    const { error } = await createClient().rpc("save_sector_with_services", {
+      p_sector_id: formData.get("sector_id") || null,
+      p_unit_id: formData.get("unit_id"),
+      p_name: formData.get("name"),
+      p_context: formData.get("context"),
+      p_service_ids: serviceIds,
+    });
+    setPending(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success(editing ? "Setor atualizado." : "Setor criado.");
+    location.reload();
+  }
+
+  const enabledServices = (sectorId: string) => serviceSectors
+    .filter((link) => link.sector_id === sectorId)
+    .map((link) => link.service_id);
+
+  return <div className="grid gap-6 xl:grid-cols-[.8fr_1.2fr]">
+    <Card className="h-fit">
+      <CardHeader><CardTitle>{editing ? "Editar setor" : "Novo setor"}</CardTitle><CardDescription>Defina em quais serviços este setor aparecerá nos formulários.</CardDescription></CardHeader>
+      <CardContent><form key={editing?.id ?? "new"} action={save} className="grid gap-4">
+        <input type="hidden" name="sector_id" value={editing?.id ?? ""} />
+        <div className="field"><Label>Unidade</Label>{editing ? <><Select value={editing.unit_id} disabled><option value={editing.unit_id}>{units.find((unit) => unit.id === editing.unit_id)?.name}</option></Select><input type="hidden" name="unit_id" value={editing.unit_id} /></> : <Select name="unit_id" defaultValue={activeUnitId ?? units[0]?.id ?? ""} required>{units.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}</Select>}</div>
+        <div className="field"><Label>Nome do setor</Label><Input name="name" required defaultValue={editing?.name} placeholder="Ex.: Enfermaria Norte" /></div>
+        <div className="field"><Label>Contexto</Label><Select name="context" defaultValue={editing?.context ?? "enfermaria"}><option value="enfermaria">Enfermaria</option><option value="clinica">Clínica</option><option value="uti">UTI</option><option value="ambulatorio">Ambulatório</option></Select></div>
+        <fieldset className="grid gap-2"><legend className="mb-1 text-sm font-medium">Serviços habilitados</legend>{services.map((service) => <label key={service.id} className="flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm"><input type="checkbox" name="service_ids" value={service.id} defaultChecked={editing ? enabledServices(editing.id).includes(service.id) : false} className="size-4 accent-primary" /><span>{service.name}</span></label>)}</fieldset>
+        <div className="flex gap-2"><Button disabled={pending} className="flex-1">{pending ? <LoaderCircle className="size-4 animate-spin" /> : editing ? <Pencil className="size-4" /> : <Plus className="size-4" />}{pending ? "Salvando..." : editing ? "Salvar alterações" : "Criar setor"}</Button>{editing && <Button type="button" variant="outline" onClick={() => setEditing(null)}>Cancelar</Button>}</div>
+      </form></CardContent>
+    </Card>
+    <Card><CardHeader><CardTitle>Setores cadastrados</CardTitle><CardDescription>{sectors.length} setores nas unidades disponíveis</CardDescription></CardHeader><CardContent className="divide-y p-0">{sectors.map((sector) => { const serviceIds = enabledServices(sector.id); return <div key={sector.id} className="flex items-start gap-3 px-5 py-4 md:px-6"><div className="min-w-0 flex-1"><p className="text-sm font-semibold">{sector.name}</p><p className="mt-1 text-xs text-muted-foreground">{units.find((unit) => unit.id === sector.unit_id)?.name} · {sector.context ?? "contexto não informado"}</p><div className="mt-2 flex flex-wrap gap-1.5">{serviceIds.map((serviceId) => <Badge key={serviceId} className="bg-secondary text-secondary-foreground">{serviceNames.get(serviceId) ?? "Serviço"}</Badge>)}{!serviceIds.length && <Badge className="bg-amber-100 text-amber-700">Sem serviço habilitado</Badge>}</div></div><Button type="button" size="sm" variant="outline" onClick={() => setEditing(sector)}><Pencil className="size-4" />Editar</Button></div>; })}{!sectors.length && <p className="p-6 text-sm text-muted-foreground">Nenhum setor cadastrado.</p>}</CardContent></Card>
   </div>;
 }
 

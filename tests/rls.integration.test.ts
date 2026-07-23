@@ -137,4 +137,83 @@ describe("RLS executada em PostgreSQL", () => {
     expect(profiles.rows).toHaveLength(Object.keys(ids.users).length);
     expect(collaborators.rows).toHaveLength(Object.keys(ids.collaborators).length);
   });
+
+  it("admin salva setor e serviços de forma atômica somente na própria unidade", async () => {
+    const created = await queryAs<{ id: string }>(
+      db,
+      "authenticated",
+      ids.users.adminGalileu,
+      `select public.save_sector_with_services(
+        null::uuid,
+        $1::uuid,
+        'RLS Enfermaria Nova',
+        'enfermaria',
+        array[$2::uuid, $3::uuid]
+      ) as id`,
+      [ids.units.galileu, ids.services.physio, ids.services.speech],
+    );
+    const sectorId = created.rows[0].id;
+
+    const links = await queryAs<{ service_id: string }>(
+      db,
+      "authenticated",
+      ids.users.adminGalileu,
+      "select service_id from public.service_sectors where sector_id = $1 order by service_id",
+      [sectorId],
+    );
+    expect(links.rows.map((row) => row.service_id)).toEqual([
+      ids.services.physio,
+      ids.services.speech,
+    ].sort());
+
+    await queryAs(
+      db,
+      "authenticated",
+      ids.users.adminGalileu,
+      `select public.save_sector_with_services(
+        $1::uuid,
+        $2::uuid,
+        'RLS Enfermaria Editada',
+        'clinica',
+        array[$3::uuid]
+      )`,
+      [sectorId, ids.units.galileu, ids.services.physio],
+    );
+    const editedLinks = await queryAs<{ service_id: string }>(
+      db,
+      "authenticated",
+      ids.users.adminGalileu,
+      "select service_id from public.service_sectors where sector_id = $1",
+      [sectorId],
+    );
+    expect(editedLinks.rows).toEqual([{ service_id: ids.services.physio }]);
+
+    await expect(queryAs(
+      db,
+      "authenticated",
+      ids.users.adminGalileu,
+      `select public.save_sector_with_services(
+        null::uuid,
+        $1::uuid,
+        'RLS Setor Fora da Unidade',
+        'uti',
+        array[$2::uuid]
+      )`,
+      [ids.units.terezinha, ids.services.physio],
+    )).rejects.toThrow(/fora do seu escopo/i);
+
+    await expect(queryAs(
+      db,
+      "authenticated",
+      ids.users.collaboratorGalileu,
+      `select public.save_sector_with_services(
+        null::uuid,
+        $1::uuid,
+        'RLS Setor por Colaborador',
+        'uti',
+        array[$2::uuid]
+      )`,
+      [ids.units.galileu, ids.services.physio],
+    )).rejects.toThrow(/apenas administradores/i);
+  });
 });
