@@ -8,6 +8,7 @@ O MVP (fases 1–3 abaixo) está implementado, com dados reais importados no Sup
 
 ## Documentos de referência (ler antes de codificar)
 - `docs/todo-go-live.md` — **lista de tarefas ativa**, priorizada, com convenção de coordenação entre agentes
+- `docs/handoff-agentes.md` — **estado e mensagens entre Claude/Codex**, incluindo bloqueios e roteiro da próxima sessão de testes
 - `docs/plano-arquitetura.md` — plano aprovado: arquitetura, modelo de dados, telas, fases, verificação
 - `docs/indicadores.md` — catálogo completo dos indicadores por serviço e definições exatas das escalas Barthel, MRC e Melhoria Funcional da UTI (textos e pontuações para o seed)
 
@@ -35,7 +36,7 @@ O MVP (fases 1–3 abaixo) está implementado, com dados reais importados no Sup
 
 ## Verificação mínima antes de considerar pronto
 - Fluxo completo no navegador (desktop e viewport mobile): login → lançamento Fisio → Barthel entrada/saída do mesmo paciente → total e flag de melhora corretos no dashboard
-- Importação: contagens no banco ≈ planilha (Barthel ~17.052, MRC ~17.909, Fisio ~8.051, Melhoria UTI ~1.085) + relatório de linhas rejeitadas/corrigidas
+- Importação: contagens no banco reconciliadas com `reports/import-report.json` (ver `docs/handoff-agentes.md` para a reconciliação linha a linha). Números aceitos após limpeza (não confundir com linhas físicas da planilha, que incluem milhares de linhas em branco): Barthel ~16.4k, MRC ~16.6k, Melhoria UTI 269 (de 1.085 linhas físicas, só 402 têm algum dado; 683 são em branco), Fisioterapia ~7.1k. Todo indicador não aceito tem motivo explícito em `issues`.
 - RLS testada: colaborador não acessa administração; anônimo não lê nada
 
 ## Idioma

@@ -38,6 +38,8 @@ Itens de P2/P3 (auditoria, recuperação de senha, PDF, PWA, testes formais, go-
 - [x] Isolar o rascunho local de produção. *(commit `cf165ce`)*
   - Chave do `localStorage` agora inclui `user_id` (`maisfisio:production-draft:<uid>`); em computador compartilhado, o próximo colaborador não recebe mais o rascunho do anterior.
 
+- [x] (Claude, `b90cec4`) Fechar leitura global residual de `sectors`/`collaborator_units`/`profile_units`. Achado do Codex (`docs/handoff-agentes.md`, 22/07) — a migração `202607210008` fechou a escrita por unidade mas três políticas de leitura continuavam `using (true)`/globais para gestores. Corrigido e testado (4/4 cenários reais).
+
 ## P1 — Multi-unidade e administração
 
 - [ ] (Codex) Completar o cadastro de setores por serviço.
@@ -69,27 +71,24 @@ Itens de P2/P3 (auditoria, recuperação de senha, PDF, PWA, testes formais, go-
 
 ## P1 — Integridade clínica e indicadores
 
-- [~] (Claude) Reforçar a validação das iniciais do paciente.
-  - Recusar nome completo tanto no frontend quanto na função SQL.
-  - Definir e testar formatos aceitos, como `M. A. S.` ou `MAS`.
-  - Critério de aceite: exemplos de nomes completos são recusados e iniciais válidas continuam aceitas.
+- [x] (Claude, `f88575a`) Reforçar a validação das iniciais do paciente.
+  - Regex novo (SQL `save_scale_assessment` + zod `scaleAssessmentSchema`): aceita `J.R.S`/`M. A. S.` (grupos de 1-2 letras com separador) ou `MAS`/`EGG` (bloco compacto de 2-4 letras); rejeita qualquer palavra de 3+ letras.
+  - Limitação documentada no código: um nome curto de verdade tipo "ANA" ainda passaria — não há regex que distinga perfeitamente sem contexto adicional.
+  - Testado: 6/6 casos reais em produção (2 nomes completos rejeitados, 4 formatos de iniciais aceitos).
 
-- [~] (Claude) Validar coerência de lançamentos no banco.
-  - Garantir que o contexto do indicador corresponde ao contexto do lançamento.
-  - Garantir que setor, colaborador e serviço são compatíveis.
-  - Exigir colaborador e número de atendimento nas escalas em que esses campos são obrigatórios.
-  - Critério de aceite: payload manipulado pelo cliente não consegue gravar combinações inválidas.
+- [x] (Claude, `f88575a`) Validar coerência de lançamentos no banco.
+  - Indicador↔contexto, colaborador↔serviço e setor↔serviço (via `service_sectors`) agora checados em `validate_production_unit`/`validate_production_value`; colaborador↔unidade em `validate_assessment_unit`.
+  - MRC exige colaborador e nº de atendimento em `save_scale_assessment` (Barthel/Melhoria UTI não têm esse campo na planilha de origem, ficam opcionais).
+  - Testado: 11/11 cenários reais em produção (payloads negativos rejeitados, positivos aceitos).
 
-- [~] (Claude) Corrigir agregação de taxas.
-  - Não somar percentuais em relatórios.
-  - Para taxa derivada, calcular `soma(numerador) / soma(denominador)` com proteção contra zero.
-  - Documentar se taxas digitadas serão média simples, ponderada ou substituídas por componentes calculáveis.
-  - Critério de aceite: índice mensal da Fono confere manualmente com melhorias totais ÷ altas totais.
+- [x] (Claude, `0d322dc`) Corrigir agregação de taxas.
+  - Nova função SQL `production_metrics_totals`: contagem soma; taxa digitada tira média simples (decisão documentada no código — não há numerador/denominador estruturado para ponderar, é limitação herdada da coleta manual); taxa derivada calcula `soma(numerador)/soma(denominador)` com `nullif` contra zero.
+  - Testado com dado sintético isolado: soma(8)/soma(10)=80% ≠ média ingênua das razões diárias=75% — a função retorna 80, confirmando que não é média de percentuais.
 
-- [~] (Claude) Remover truncamentos silenciosos do dashboard e dos relatórios.
-  - Substituir limites fixos de 10 mil/20 mil por paginação, agregação SQL ou RPC própria.
-  - Garantir que CSV, dashboard e PDF usam o mesmo conjunto completo de dados.
-  - Critério de aceite: totais de períodos grandes conferem com consultas diretas no banco.
+- [x] (Claude, `0d322dc`) Remover truncamentos silenciosos do dashboard e dos relatórios.
+  - KPIs e totais do relatório vêm de `production_metrics_totals` (no máx. 1 linha por indicador ativo, nunca corta).
+  - Linhas brutas do gráfico/quebras/CSV/lista de escalas agora usam `lib/supabase/pagination.ts` (`fetchAllRows`, pagina via `.range()`) em vez de `.limit(10000/20000)`.
+  - CSV e dashboard usam o mesmo array paginado — não podem divergir.
 
 - [ ] (Codex) Completar os filtros e exportações do dashboard.
   - Adicionar turno e colaborador.
@@ -99,21 +98,18 @@ Itens de P2/P3 (auditoria, recuperação de senha, PDF, PWA, testes formais, go-
 
 ## P1 — Importação histórica
 
-- [~] (Claude) Reconciliar relatório e banco após a importação.
-  - Explicar e registrar a diferença atual de 19 produções e 51 escalas entre o relatório e o banco.
-  - Incluir avaliações descartadas por opções fora do catálogo no relatório final, não apenas no console.
-  - Critério de aceite: `aceitas = inseridas + já existentes + rejeitadas na carga`, sem diferenças sem justificativa.
+- [x] (Claude) Reconciliar relatório e banco após a importação.
+  - **Causa raiz encontrada e corrigida**: o relatório original contava `scales.length` (parsed, ANTES do filtro de "resposta fora do catálogo" que só roda em `upload()`) em vez do array de fato gravado no banco — as rejeições por catálogo iam só pro console, nunca para `issues`/`summary`. Corrigido em `scripts/import-xlsx.ts`: `upload()` agora devolve o array aceito e empurra cada descarte para `issues` com nível `rejeitada`; dry-run (sem acesso ao catálogo do banco) ganhou um aviso explícito dessa limitação no próprio relatório.
+  - **Reconciliação completa dos 19 produções + 51 escalas**: 19 produções e 15 escalas (2 Barthel + 13 MRC) eram lançamentos com data em 2027 — bug já corrigido (`validateDate` passou a rejeitar datas futuras) e as linhas já haviam sido removidas manualmente do banco antes desta investigação. As 36 linhas de Barthel restantes eram exatamente o off-catalog do item acima (confirmado batendo um dry-run fresco pós-fix contra a contagem real do banco: MRC e Melhoria UTI bateram exato, Barthel bateu exato após contar o off-catalog). `19 + 15 + 36 = 51+19` ✓, sem sobra não explicada.
+  - Detalhes completos em `docs/handoff-agentes.md`.
 
-- [~] (Claude) Revisar rejeições reais da Melhoria Funcional UTI.
-  - Considerar que 1.085 é o limite físico da aba, mas somente 279 linhas possuem avaliação preenchida.
-  - Revisar as 10 avaliações preenchidas que não chegaram às 269 importadas.
-  - Atualizar a documentação para não exigir aproximadamente 1.085 avaliações válidas.
-  - Critério de aceite: todas as linhas preenchidas estão importadas ou possuem motivo aprovado de rejeição.
+- [x] (Claude) Revisar rejeições reais da Melhoria Funcional UTI.
+  - Contagem exata por mecanismo: **269 aceitas + 133 rejeitadas com motivo explícito em `issues` (principalmente prontuário/setor/data ausente) + 683 linhas totalmente em branco (puladas antes de qualquer validação, sem gerar issue) = 1.085 linhas físicas**, sem resto.
+  - `docs/plano-arquitetura.md`/`AGENTS.md` atualizados para não citarem "~1.085 avaliações válidas" (era confusão entre linhas físicas da aba e avaliações de fato preenchidas — só 402 linhas têm algum dado).
 
-- [~] (Claude) Revisar amostras clínicas contra a planilha.
-  - Conferir ao menos três pacientes de Barthel, três de MRC e três de Melhoria UTI.
-  - Comparar itens, total, entrada, saída e flag de melhora.
-  - Critério de aceite: resultados do banco conferem com o cálculo manual e divergências ficam documentadas.
+- [x] (Claude) Revisar amostras clínicas contra a planilha.
+  - Script comparou 3 pacientes de cada escala (9 no total, incluindo pares entrada/saída) recalculando o total diretamente da planilha com a mesma lógica do importador (`parseScaleSheet`) e comparando com `scale_assessments.total` no banco.
+  - **9/9 conferem exatamente** — nenhuma divergência de item, total, entrada, saída ou pontuação.
 
 - [ ] Aprovar o relatório de qualidade com a MaisFisio.
   - Revisar nomes de equipe preservados como colaboradores canônicos.

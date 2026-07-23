@@ -167,7 +167,7 @@ function stableUuid(key: string) { const hex = createHash("sha256").update(`mais
 async function batches<T>(items: T[], size: number, fn: (batch: T[]) => Promise<void>) { for (let i = 0; i < items.length; i += size) await fn(items.slice(i, i + size)); }
 async function allRows(client: SupabaseClient, table: string, columns: string) { const result: any[] = []; for (let from = 0;; from += 1000) { const { data, error } = await client.from(table).select(columns).range(from, from + 999); if (error) throw error; result.push(...(data ?? [])); if (!data || data.length < 1000) return result; } }
 
-async function upload(production: ProductionImport[], scales: ScaleImport[]) {
+async function upload(production: ProductionImport[], scales: ScaleImport[]): Promise<{ scalesAccepted: ScaleImport[] }> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL; const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error("Configure NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY para importar.");
   const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -206,6 +206,14 @@ async function upload(production: ProductionImport[], scales: ScaleImport[]) {
   });
   if (offCatalog.length) {
     console.log(`Avaliações descartadas por opção fora do catálogo: ${offCatalog.length}`);
+    offCatalog.forEach((x) => {
+      const bad = x.answers.filter((a) => { const itemId = itemMap.get(`${x.scaleType}:${a.itemCode}`); return !itemId || !optionMap.has(`${itemId}:${a.points}`); });
+      const reason = `Resposta fora do catálogo da escala: ${bad.map((a) => `${a.itemCode}=${a.points}`).join(", ")}`;
+      // Antes só ia pro console — o relatório final (issues/summary) não
+      // refletia essas rejeições, causando divergência silenciosa entre o
+      // que o relatório dizia ter aceitado e o que de fato ficou no banco.
+      issues.push({ sheet: x.source, row: x.row, level: "rejeitada", reason });
+    });
     offCatalog.slice(0, 20).forEach((x) => { const bad = x.answers.filter((a) => { const itemId = itemMap.get(`${x.scaleType}:${a.itemCode}`); return !itemId || !optionMap.has(`${itemId}:${a.points}`); }); console.log(`  ${x.source} linha ${x.row}: ${bad.map((a) => `${a.itemCode}=${a.points}`).join(", ")}`); });
     if (offCatalog.length > 20) console.log(`  ... e mais ${offCatalog.length - 20}`);
   }
@@ -215,6 +223,7 @@ async function upload(production: ProductionImport[], scales: ScaleImport[]) {
     const scores = batch.flatMap((x, index) => x.answers.map((answer) => { const itemId = itemMap.get(`${x.scaleType}:${answer.itemCode}`); return { assessment_id: assessments[index].id, item_id: itemId, option_id: optionMap.get(`${itemId}:${answer.points}`) }; }));
     const scoreResult = await client.from("scale_scores").upsert(scores, { onConflict: "assessment_id,item_id" }); if (scoreResult.error) throw scoreResult.error;
   });
+  return { scalesAccepted: importable };
 }
 
 async function main() {
@@ -222,9 +231,22 @@ async function main() {
   const workbook = XLSX.readFile(inputFile, { cellDates: false, raw: true });
   const production = dedupeBy(productionSheets.flatMap((config) => parseProductionSheet(workbook, config)), (x) => `${x.service}|${x.date}|${x.shift}|${x.sector}|${normalizeKey(x.collaborator)}|${x.context}`, "Lançamento");
   const scaleGroups = (["barthel", "mrc", "melhoria_uti"] as const).map((type) => [type, dedupeBy(parseScaleSheet(workbook, type), (x) => `${x.scaleType}|${x.recordNumber}|${x.date}|${x.moment}|${x.attendanceNumber ?? ""}`, "Evento de avaliação")] as const); const scales = scaleGroups.flatMap(([, rows]) => rows);
-  if (!dryRun) await upload(production, scales);
+  // Em modo real, o catálogo de opções da escala só é conhecido depois de
+  // consultar o banco (dentro de upload()) — por isso o off-catalog só é
+  // detectável de fato durante upload(). Em dry-run (sem conexão), o
+  // relatório usa a contagem antes desse filtro e avisa da limitação.
+  const uploadResult = dryRun ? null : await upload(production, scales);
+  const acceptedScalesByType = uploadResult
+    ? Object.fromEntries((["barthel", "mrc", "melhoria_uti"] as const).map((type) => [type, uploadResult.scalesAccepted.filter((x) => x.scaleType === type).length]))
+    : Object.fromEntries(scaleGroups.map(([type, rows]) => [type, rows.length]));
+  const scalesAcceptedTotal = uploadResult ? uploadResult.scalesAccepted.length : scales.length;
   const physicalRows = Object.fromEntries([...productionSheets.map((config) => { const range = XLSX.utils.decode_range(workbook.Sheets[config.sheet]["!ref"] ?? "A1"); return [config.sheet.trim(), range.e.r - config.header]; }), ...(["Escala de Barthel", "MRC - TABELA", "Melhoria Funcional da UTI - Tab"] as const).map((sheet) => { const range = XLSX.utils.decode_range(workbook.Sheets[sheet]["!ref"] ?? "A1"); return [sheet, range.e.r]; })]);
-  const report = { generatedAt: new Date().toISOString(), source: inputFile, mode: dryRun ? "dry-run" : "import", summary: { physicalRows, production: Object.fromEntries(productionSheets.map((x) => [x.sheet.trim(), production.filter((row) => row.source === x.sheet).length])), scales: Object.fromEntries(scaleGroups.map(([type, rows]) => [type, rows.length])), totalAccepted: production.length + scales.length, corrected: issues.filter((x) => x.level === "corrigida").length, review: issues.filter((x) => x.level === "revisao").length, rejected: issues.filter((x) => x.level === "rejeitada").length }, issues };
+  const report = {
+    generatedAt: new Date().toISOString(), source: inputFile, mode: dryRun ? "dry-run" : "import",
+    ...(dryRun ? { aviso: "Modo dry-run: a contagem de escalas não passou pelo filtro de opções fora do catálogo (só é possível consultando o banco). Rode a importação real para o número definitivo, que fica registrado neste mesmo relatório." } : {}),
+    summary: { physicalRows, production: Object.fromEntries(productionSheets.map((x) => [x.sheet.trim(), production.filter((row) => row.source === x.sheet).length])), scales: acceptedScalesByType, totalAccepted: production.length + scalesAcceptedTotal, corrected: issues.filter((x) => x.level === "corrigida").length, review: issues.filter((x) => x.level === "revisao").length, rejected: issues.filter((x) => x.level === "rejeitada").length },
+    issues,
+  };
   await mkdir(reportDir, { recursive: true }); await writeFile(path.join(reportDir, "import-report.json"), JSON.stringify(report, null, 2), "utf8");
   const csv = ["aba;linha;nivel;motivo;original", ...issues.map((x) => [x.sheet,x.row,x.level,x.reason,x.original ?? ""].map((v) => `"${String(v).replaceAll('"','""')}"`).join(";"))].join("\n"); await writeFile(path.join(reportDir, "import-issues.csv"), `\uFEFF${csv}`, "utf8");
   console.log(JSON.stringify(report.summary, null, 2)); console.log(`Relatórios: ${path.join(reportDir, "import-report.json")} e import-issues.csv`);

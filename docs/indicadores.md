@@ -122,7 +122,7 @@ Graus (texto exato → pontos):
 
 Total 0–60. Ponto de corte clínico usual: < 48 indica fraqueza adquirida na UTI (ICU-AW).
 
-## 8. Melhoria Funcional da UTI (aba "Melhoria Funcional da UTI - Tab", ~1.085 avaliações)
+## 8. Melhoria Funcional da UTI (aba "Melhoria Funcional da UTI - Tab", 1.085 linhas físicas — só 269 avaliações válidas de fato; ver reconciliação em `docs/handoff-agentes.md`)
 
 Campos: Data da Avaliação · Paciente (sigla) · Nº do prontuário · Idade · Diagnóstico principal (CID) · Tipo do Setor · Entrada/Saída · Data de entrada/saída na UTI · 4 componentes abaixo · Observações · Pontuação total (soma, máx. 33, **calculada**) · Melhoria? (**calculada**).
 
