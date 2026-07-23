@@ -90,3 +90,9 @@ Admin e `super_admin` agora criam e editam setores escolhendo os serviços
 habilitados. A função SQL `save_sector_with_services` grava setor e
 `service_sectors` atomicamente e impede atuação fora da unidade. A suíte passou
 com 15 testes, incluindo criação, edição e negativas de autoridade.
+
+A gestão de usuários foi concluída no commit `16ac6c1`: ativação/desativação,
+papel, serviço, unidades de acesso e unidades de atuação agora são editáveis
+sem SQL Editor. A rota valida autoridade antes de usar `service_role` e a
+função SQL executa a atualização inteira em uma transação. A suíte passou com
+16 testes, incluindo coordenador, admin, matriz e tentativas fora da unidade.

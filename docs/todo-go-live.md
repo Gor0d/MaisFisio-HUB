@@ -50,13 +50,19 @@ Itens de P2/P3 (auditoria, recuperação de senha, PDF, PWA, testes formais, go-
     atômicas pela função `save_sector_with_services`, que também valida unidade,
     serviços ativos e autoridade. Coberto pela suíte RLS local.
 
-- [~] (Codex) Completar a gestão de usuários.
+- [x] (Codex, `16ac6c1`) Completar a gestão de usuários.
   - Desativar e reativar acesso.
   - Alterar papel e serviço com validação de autoridade.
   - Adicionar e remover vínculos em múltiplas unidades.
   - Adicionar e remover vínculos de colaboradores com unidades.
   - Critério de aceite: o administrador consegue executar o ciclo completo sem usar o SQL Editor.
   - Nota: como em `/api/admin/invite/route.ts`, use `service_role` no servidor — a RLS de `profiles` (migração `202607210008`) bloqueia admin alterando `role`/`active` fora da própria unidade por design; a rota deve reforçar isso antes de chamar o client admin, não confiar só na RLS.
+  - A rota `PATCH /api/admin/users/[userId]` valida sessão, papel, serviço e
+    escopo de unidades antes de usar `service_role`; a função
+    `admin_update_user_access` repete as regras e atualiza perfil, colaborador e
+    ambos os conjuntos de vínculos na mesma transação.
+  - A própria conta e contas `super_admin` não podem ser alteradas pela tela.
+    Coordenador fica restrito a colaboradores do próprio serviço.
 
 - [ ] (Codex) Tornar o convite administrativo consistente.
   - Evitar usuário órfão quando perfil, unidade ou colaborador falhar após o envio do convite.
