@@ -144,7 +144,7 @@ Itens de P2/P3 (auditoria, recuperação de senha, PDF, PWA, testes formais, go-
 - [ ] Criar usuários de teste para todos os papéis.
   - Um `super_admin`, admins de duas unidades, coordenadores de serviços diferentes e colaboradores.
 
-- [ ] Criar testes de integração RLS contra Supabase de teste.
+- [~] (Codex) Criar testes de integração RLS contra Supabase de teste.
   - Anônimo não lê dados.
   - Colaborador não acessa administração.
   - Coordenador fica limitado ao serviço e à unidade.
