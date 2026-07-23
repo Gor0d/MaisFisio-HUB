@@ -216,4 +216,102 @@ describe("RLS executada em PostgreSQL", () => {
       [ids.units.galileu, ids.services.physio],
     )).rejects.toThrow(/apenas administradores/i);
   });
+
+  it("gestão de usuários respeita papel, serviço e unidades em uma transação", async () => {
+    const updateAccess = (
+      actorId: string,
+      targetId: string,
+      role: "admin" | "coordenador" | "colaborador",
+      serviceId: string,
+      active: boolean,
+      unitIds: string[],
+      collaboratorUnitIds: string[],
+    ) => queryAs(
+      db,
+      "service_role",
+      null,
+      `select public.admin_update_user_access(
+        $1::uuid, $2::uuid, 'Usuário Atualizado RLS', $3::public.app_role,
+        $4::uuid, $5::boolean, $6::uuid[], $7::uuid[]
+      )`,
+      [actorId, targetId, role, serviceId, active, unitIds, collaboratorUnitIds],
+    );
+
+    await updateAccess(
+      ids.users.coordinatorPhysio,
+      ids.users.collaboratorGalileu,
+      "colaborador",
+      ids.services.physio,
+      false,
+      [ids.units.galileu],
+      [ids.units.galileu],
+    );
+    const deactivated = await queryAs<{ active: boolean; role: string }>(
+      db,
+      "service_role",
+      null,
+      "select active, role::text as role from public.profiles where user_id = $1",
+      [ids.users.collaboratorGalileu],
+    );
+    expect(deactivated.rows).toEqual([{ active: false, role: "colaborador" }]);
+
+    await expect(updateAccess(
+      ids.users.coordinatorPhysio,
+      ids.users.collaboratorGalileu,
+      "coordenador",
+      ids.services.physio,
+      true,
+      [ids.units.galileu],
+      [ids.units.galileu],
+    )).rejects.toThrow(/só gerencia colaboradores/i);
+
+    await updateAccess(
+      ids.users.adminGalileu,
+      ids.users.collaboratorGalileu,
+      "coordenador",
+      ids.services.physio,
+      true,
+      [ids.units.galileu],
+      [ids.units.galileu],
+    );
+    const promoted = await queryAs<{ active: boolean; role: string }>(
+      db,
+      "service_role",
+      null,
+      "select active, role::text as role from public.profiles where user_id = $1",
+      [ids.users.collaboratorGalileu],
+    );
+    expect(promoted.rows).toEqual([{ active: true, role: "coordenador" }]);
+
+    await expect(updateAccess(
+      ids.users.adminGalileu,
+      ids.users.collaboratorTerezinha,
+      "colaborador",
+      ids.services.physio,
+      true,
+      [ids.units.terezinha],
+      [ids.units.terezinha],
+    )).rejects.toThrow(/fora do escopo do administrador/i);
+
+    await updateAccess(
+      ids.users.superAdmin,
+      ids.users.collaboratorTerezinha,
+      "colaborador",
+      ids.services.speech,
+      true,
+      [ids.units.galileu, ids.units.terezinha],
+      [ids.units.terezinha],
+    );
+    const links = await queryAs<{ unit_id: string }>(
+      db,
+      "service_role",
+      null,
+      "select unit_id from public.profile_units where user_id = $1 order by unit_id",
+      [ids.users.collaboratorTerezinha],
+    );
+    expect(links.rows.map((row) => row.unit_id)).toEqual([
+      ids.units.galileu,
+      ids.units.terezinha,
+    ].sort());
+  });
 });

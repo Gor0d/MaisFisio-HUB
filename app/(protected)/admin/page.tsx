@@ -15,8 +15,10 @@ export default async function AdminPage() {
   const { data: { user } } = await supabase.auth.getUser();
   const profile = await supabase.from("profiles").select("user_id,full_name,role,service_id").eq("user_id", user!.id).single();
   if (profile.data?.role === "colaborador") redirect("/dashboard");
-  const [services, collaborators, collaboratorUnits, indicators, sectors, serviceSectors, targets, audit] = await Promise.all([
+  const [services, profiles, profileUnits, collaborators, collaboratorUnits, indicators, sectors, serviceSectors, targets, audit] = await Promise.all([
     supabase.from("services").select("id,name,code").eq("active", true).order("name"),
+    supabase.from("profiles").select("user_id,full_name,role,service_id,active").order("full_name"),
+    supabase.from("profile_units").select("user_id,unit_id"),
     supabase.from("collaborators").select("id,canonical_name,service_id,user_id,active,services(name)").order("canonical_name"),
     supabase.from("collaborator_units").select("collaborator_id,unit_id"),
     supabase.from("indicators").select("id,code,name,service_id,context,kind,active,services(name)").order("name"),
@@ -27,5 +29,5 @@ export default async function AdminPage() {
   ]);
   const units = await getUserUnits(supabase, profile.data as Profile);
   const activeUnitId = await getActiveUnitId(units, profile.data as Profile);
-  return <AdminView role={profile.data!.role} currentServiceId={profile.data!.service_id} units={units} activeUnitId={activeUnitId} services={services.data ?? []} collaborators={collaborators.data ?? []} collaboratorUnits={collaboratorUnits.data ?? []} indicators={indicators.data ?? []} sectors={sectors.data ?? []} serviceSectors={serviceSectors.data ?? []} targets={targets.data ?? []} audit={audit.data ?? []} />;
+  return <AdminView role={profile.data!.role} currentUserId={user!.id} currentServiceId={profile.data!.service_id} units={units} activeUnitId={activeUnitId} services={services.data ?? []} profiles={profiles.data ?? []} profileUnits={profileUnits.data ?? []} collaborators={collaborators.data ?? []} collaboratorUnits={collaboratorUnits.data ?? []} indicators={indicators.data ?? []} sectors={sectors.data ?? []} serviceSectors={serviceSectors.data ?? []} targets={targets.data ?? []} audit={audit.data ?? []} />;
 }

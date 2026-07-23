@@ -15,6 +15,8 @@ import { ptBRDate } from "@/lib/utils";
 
 type ServiceRow = { id: string; name: string; code?: string };
 type UnitRow = { id: string; code: string; name: string };
+type ProfileRow = { user_id: string; full_name: string; role: string; service_id: string | null; active: boolean };
+type ProfileUnitRow = { user_id: string; unit_id: string };
 type CollaboratorUnitRow = { collaborator_id: string; unit_id: string };
 type CollaboratorRow = { id: string; canonical_name: string; service_id: string; user_id: string | null; active: boolean; services?: { name: string }[] | null };
 type IndicatorRow = { id: string; name: string; kind: string; context: string; active: boolean; services?: { name: string }[] | null };
@@ -23,11 +25,11 @@ type ServiceSectorRow = { service_id: string; sector_id: string };
 type TargetRow = { id: string; target_value: number; comparison: string; valid_from: string; unit_id: string | null; indicators?: { name: string }[] | null; sectors?: { name: string }[] | null; units?: { name: string }[] | null };
 type AuditRow = { id: number; changed_at: string; action: string; table_name: string; record_id: string | null; profiles?: { full_name: string }[] | null };
 
-export function AdminView({ role, currentServiceId, units, activeUnitId, services, collaborators, collaboratorUnits, indicators, sectors, serviceSectors, targets, audit }: { role: string; currentServiceId: string | null; units: UnitRow[]; activeUnitId: string | null; services: ServiceRow[]; collaborators: CollaboratorRow[]; collaboratorUnits: CollaboratorUnitRow[]; indicators: IndicatorRow[]; sectors: SectorRow[]; serviceSectors: ServiceSectorRow[]; targets: TargetRow[]; audit: AuditRow[] }) {
+export function AdminView({ role, currentUserId, currentServiceId, units, activeUnitId, services, profiles, profileUnits, collaborators, collaboratorUnits, indicators, sectors, serviceSectors, targets, audit }: { role: string; currentUserId: string; currentServiceId: string | null; units: UnitRow[]; activeUnitId: string | null; services: ServiceRow[]; profiles: ProfileRow[]; profileUnits: ProfileUnitRow[]; collaborators: CollaboratorRow[]; collaboratorUnits: CollaboratorUnitRow[]; indicators: IndicatorRow[]; sectors: SectorRow[]; serviceSectors: ServiceSectorRow[]; targets: TargetRow[]; audit: AuditRow[] }) {
   const [tab, setTab] = useState("colaboradores");
   const canManageSectors = role === "super_admin" || role === "admin";
   const tabs = [{ id: "colaboradores", label: "Colaboradores", icon: Users }, ...(role === "super_admin" ? [{ id: "unidades", label: "Unidades", icon: Building2 }] : []), ...(canManageSectors ? [{ id: "setores", label: "Setores", icon: Building2 }] : []), { id: "metas", label: "Metas", icon: Gauge }, { id: "indicadores", label: "Indicadores", icon: Settings2 }, { id: "auditoria", label: "Auditoria", icon: ClipboardList }];
-  return <div className="grid gap-6"><header><h1 className="page-title">Administração</h1><p className="page-description">Gerencie unidades, acessos e catálogos do sistema.</p></header><div className="flex gap-2 overflow-x-auto pb-1">{tabs.map(({ id, label, icon: Icon }) => <Button key={id} variant={tab === id ? "default" : "outline"} onClick={() => setTab(id)}><Icon className="size-4" />{label}</Button>)}</div>{tab === "colaboradores" && <Collaborators role={role} currentServiceId={currentServiceId} units={units} activeUnitId={activeUnitId} services={services} collaborators={collaborators} collaboratorUnits={collaboratorUnits} />}{tab === "unidades" && <Units units={units} sectors={sectors} />}{tab === "setores" && <Sectors units={units} activeUnitId={activeUnitId} services={services} sectors={sectors} serviceSectors={serviceSectors} />}{tab === "metas" && <Targets role={role} units={units} activeUnitId={activeUnitId} indicators={indicators} sectors={sectors} targets={targets} />}{tab === "indicadores" && <Indicators indicators={indicators} />}{tab === "auditoria" && <Audit rows={audit} />}</div>;
+  return <div className="grid gap-6"><header><h1 className="page-title">Administração</h1><p className="page-description">Gerencie unidades, acessos e catálogos do sistema.</p></header><div className="flex gap-2 overflow-x-auto pb-1">{tabs.map(({ id, label, icon: Icon }) => <Button key={id} variant={tab === id ? "default" : "outline"} onClick={() => setTab(id)}><Icon className="size-4" />{label}</Button>)}</div>{tab === "colaboradores" && <Collaborators role={role} currentUserId={currentUserId} currentServiceId={currentServiceId} units={units} activeUnitId={activeUnitId} services={services} profiles={profiles} profileUnits={profileUnits} collaborators={collaborators} collaboratorUnits={collaboratorUnits} />}{tab === "unidades" && <Units units={units} sectors={sectors} />}{tab === "setores" && <Sectors units={units} activeUnitId={activeUnitId} services={services} sectors={sectors} serviceSectors={serviceSectors} />}{tab === "metas" && <Targets role={role} units={units} activeUnitId={activeUnitId} indicators={indicators} sectors={sectors} targets={targets} />}{tab === "indicadores" && <Indicators indicators={indicators} />}{tab === "auditoria" && <Audit rows={audit} />}</div>;
 }
 
 // Portal da matriz: criar unidades e acompanhar seus setores. Setores são
@@ -101,11 +103,92 @@ function Sectors({ units, activeUnitId, services, sectors, serviceSectors }: { u
   </div>;
 }
 
-function Collaborators({ role, currentServiceId, units, activeUnitId, services, collaborators, collaboratorUnits }: { role: string; currentServiceId: string | null; units: UnitRow[]; activeUnitId: string | null; services: ServiceRow[]; collaborators: CollaboratorRow[]; collaboratorUnits: CollaboratorUnitRow[] }) {
+function Collaborators({ role, currentUserId, currentServiceId, units, activeUnitId, services, profiles, profileUnits, collaborators, collaboratorUnits }: { role: string; currentUserId: string; currentServiceId: string | null; units: UnitRow[]; activeUnitId: string | null; services: ServiceRow[]; profiles: ProfileRow[]; profileUnits: ProfileUnitRow[]; collaborators: CollaboratorRow[]; collaboratorUnits: CollaboratorUnitRow[] }) {
   const [pending, setPending] = useState(false);
-  const unitNames = new Map(units.map((x) => [x.id, x.name]));
-  async function invite(formData: FormData) { setPending(true); const body = Object.fromEntries(formData); const response = await fetch("/api/admin/invite", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); const data = await response.json(); setPending(false); if (!response.ok) { toast.error(data.error); return; } toast.success("Convite enviado por e-mail."); }
-  return <div className="grid gap-6 xl:grid-cols-[.8fr_1.2fr]"><Card><CardHeader><CardTitle>Convidar usuário</CardTitle><CardDescription>O acesso só é criado após o convite institucional.</CardDescription></CardHeader><CardContent><form action={invite} className="grid gap-4"><div className="field"><Label>Nome completo do profissional</Label><Input name="full_name" required /></div><div className="field"><Label>E-mail</Label><Input name="email" type="email" required /></div><div className="field"><Label>Unidade</Label><Select name="unit_id" defaultValue={activeUnitId ?? units[0]?.id ?? ""} required>{units.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select></div><div className="field"><Label>Serviço</Label><Select name="service_id" defaultValue={currentServiceId ?? ""} disabled={role === "coordenador"}>{services.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select>{role === "coordenador" && <input type="hidden" name="service_id" value={currentServiceId ?? ""} />}</div><div className="field"><Label>Papel</Label><Select name="role" disabled={role === "coordenador"}><option value="colaborador">Colaborador</option>{(role === "admin" || role === "super_admin") && <><option value="coordenador">Coordenador</option><option value="admin">Administrador</option></>}</Select>{role === "coordenador" && <input type="hidden" name="role" value="colaborador" />}</div><Button disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : <UserPlus className="size-4" />}{pending ? "Enviando..." : "Enviar convite"}</Button></form></CardContent></Card><Card><CardHeader><CardTitle>Profissionais cadastrados</CardTitle><CardDescription>{collaborators.length} registros canônicos</CardDescription></CardHeader><CardContent className="divide-y p-0">{collaborators.map((x) => { const unitsOf = collaboratorUnits.filter((cu) => cu.collaborator_id === x.id).map((cu) => unitNames.get(cu.unit_id)).filter(Boolean); return <div key={x.id} className="flex items-center gap-3 px-5 py-3.5 md:px-6"><div className="grid size-9 place-items-center rounded-full bg-secondary text-xs font-bold">{x.canonical_name.slice(0, 2)}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{x.canonical_name}</p><p className="truncate text-xs text-muted-foreground">{x.services?.[0]?.name ?? "Serviço"}{unitsOf.length ? ` · ${unitsOf.join(", ")}` : ""}</p></div><Badge className={x.user_id ? "" : "bg-amber-100 text-amber-700"}>{x.user_id ? "Com acesso" : "Sem acesso"}</Badge></div>; })}</CardContent></Card></div>;
+  const [editingProfile, setEditingProfile] = useState<ProfileRow | null>(null);
+  const unitNames = new Map(units.map((unit) => [unit.id, unit.name]));
+  const serviceNames = new Map(services.map((service) => [service.id, service.name]));
+  const collaboratorByUser = new Map(collaborators.filter((collaborator) => collaborator.user_id).map((collaborator) => [collaborator.user_id!, collaborator]));
+  const roleLabels: Record<string, string> = { super_admin: "Matriz", admin: "Administrador", coordenador: "Coordenador", colaborador: "Colaborador" };
+
+  async function invite(formData: FormData) {
+    setPending(true);
+    const body = Object.fromEntries(formData);
+    const response = await fetch("/api/admin/invite", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await response.json();
+    setPending(false);
+    if (!response.ok) {
+      toast.error(data.error);
+      return;
+    }
+    toast.success("Convite enviado por e-mail.");
+    location.reload();
+  }
+
+  async function updateAccess(formData: FormData) {
+    if (!editingProfile) return;
+
+    const body = {
+      full_name: formData.get("full_name"),
+      role: formData.get("role"),
+      service_id: formData.get("service_id"),
+      active: formData.get("active") === "on",
+      unit_ids: formData.getAll("unit_ids").map(String),
+      collaborator_unit_ids: formData.getAll("collaborator_unit_ids").map(String),
+    };
+
+    setPending(true);
+    const response = await fetch(`/api/admin/users/${editingProfile.user_id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await response.json();
+    setPending(false);
+    if (!response.ok) {
+      toast.error(data.error);
+      return;
+    }
+    toast.success("Acesso atualizado.");
+    location.reload();
+  }
+
+  const canManage = (profile: ProfileRow) => {
+    if (profile.user_id === currentUserId || profile.role === "super_admin") return false;
+    if (role === "super_admin" || role === "admin") return true;
+    return role === "coordenador"
+      && profile.role === "colaborador"
+      && profile.service_id === currentServiceId;
+  };
+
+  const selectedCollaborator = editingProfile ? collaboratorByUser.get(editingProfile.user_id) : null;
+  const selectedAccessUnits = new Set(editingProfile ? profileUnits.filter((link) => link.user_id === editingProfile.user_id).map((link) => link.unit_id) : []);
+  const selectedWorkUnits = new Set(selectedCollaborator ? collaboratorUnits.filter((link) => link.collaborator_id === selectedCollaborator.id).map((link) => link.unit_id) : []);
+
+  return <div className="grid gap-6">
+    {editingProfile && <Card>
+      <CardHeader><CardTitle>Gerenciar acesso</CardTitle><CardDescription>Altere papel, serviço e vínculos de {editingProfile.full_name}.</CardDescription></CardHeader>
+      <CardContent><form key={editingProfile.user_id} action={updateAccess} className="grid gap-5 lg:grid-cols-2">
+        <div className="field"><Label>Nome do profissional</Label><Input name="full_name" defaultValue={editingProfile.full_name} required /></div>
+        <div className="field"><Label>Situação</Label><label className="flex h-10 items-center gap-3 rounded-md border px-3 text-sm"><input type="checkbox" name="active" defaultChecked={editingProfile.active} className="size-4 accent-primary" />Acesso ativo</label></div>
+        <div className="field"><Label>Papel</Label><Select name="role" defaultValue={editingProfile.role} disabled={role === "coordenador"}><option value="colaborador">Colaborador</option><option value="coordenador">Coordenador</option><option value="admin">Administrador</option></Select>{role === "coordenador" && <input type="hidden" name="role" value="colaborador" />}</div>
+        <div className="field"><Label>Serviço</Label><Select name="service_id" defaultValue={editingProfile.service_id ?? ""} disabled={role === "coordenador"} required>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</Select>{role === "coordenador" && <input type="hidden" name="service_id" value={currentServiceId ?? ""} />}</div>
+        <fieldset className="grid gap-2"><legend className="mb-1 text-sm font-medium">Unidades de acesso ao sistema</legend>{units.map((unit) => <label key={unit.id} className="flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm"><input type="checkbox" name="unit_ids" value={unit.id} defaultChecked={selectedAccessUnits.has(unit.id)} className="size-4 accent-primary" />{unit.name}</label>)}</fieldset>
+        <fieldset className="grid gap-2"><legend className="mb-1 text-sm font-medium">Unidades de atuação profissional</legend>{units.map((unit) => <label key={unit.id} className="flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm"><input type="checkbox" name="collaborator_unit_ids" value={unit.id} defaultChecked={selectedWorkUnits.has(unit.id)} className="size-4 accent-primary" />{unit.name}</label>)}</fieldset>
+        <div className="flex gap-2 lg:col-span-2"><Button disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : <Settings2 className="size-4" />}{pending ? "Salvando..." : "Salvar acesso"}</Button><Button type="button" variant="outline" onClick={() => setEditingProfile(null)}>Cancelar</Button></div>
+      </form></CardContent>
+    </Card>}
+
+    <div className="grid gap-6 xl:grid-cols-[.8fr_1.2fr]">
+      <Card className="h-fit"><CardHeader><CardTitle>Convidar usuário</CardTitle><CardDescription>O acesso só é criado após o convite institucional.</CardDescription></CardHeader><CardContent><form action={invite} className="grid gap-4"><div className="field"><Label>Nome completo do profissional</Label><Input name="full_name" required /></div><div className="field"><Label>E-mail</Label><Input name="email" type="email" required /></div><div className="field"><Label>Unidade</Label><Select name="unit_id" defaultValue={activeUnitId ?? units[0]?.id ?? ""} required>{units.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}</Select></div><div className="field"><Label>Serviço</Label><Select name="service_id" defaultValue={currentServiceId ?? services[0]?.id ?? ""} disabled={role === "coordenador"}>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</Select>{role === "coordenador" && <input type="hidden" name="service_id" value={currentServiceId ?? ""} />}</div><div className="field"><Label>Papel</Label><Select name="role" disabled={role === "coordenador"}><option value="colaborador">Colaborador</option>{(role === "admin" || role === "super_admin") && <><option value="coordenador">Coordenador</option><option value="admin">Administrador</option></>}</Select>{role === "coordenador" && <input type="hidden" name="role" value="colaborador" />}</div><Button disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : <UserPlus className="size-4" />}{pending ? "Enviando..." : "Enviar convite"}</Button></form></CardContent></Card>
+
+      <Card><CardHeader><CardTitle>Usuários com acesso</CardTitle><CardDescription>{profiles.length} perfis no seu escopo administrativo</CardDescription></CardHeader><CardContent className="divide-y p-0">{profiles.map((profile) => { const accessUnits = profileUnits.filter((link) => link.user_id === profile.user_id).map((link) => unitNames.get(link.unit_id)).filter(Boolean); return <div key={profile.user_id} className="flex items-center gap-3 px-5 py-3.5 md:px-6"><div className="grid size-9 place-items-center rounded-full bg-secondary text-xs font-bold">{profile.full_name.slice(0, 2).toUpperCase()}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{profile.full_name}</p><p className="truncate text-xs text-muted-foreground">{serviceNames.get(profile.service_id ?? "") ?? "Matriz"}{accessUnits.length ? ` · ${accessUnits.join(", ")}` : ""}</p><div className="mt-1 flex gap-1.5"><Badge>{roleLabels[profile.role] ?? profile.role}</Badge><Badge className={profile.active ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}>{profile.active ? "Ativo" : "Inativo"}</Badge></div></div><Button type="button" size="sm" variant="outline" disabled={!canManage(profile)} onClick={() => setEditingProfile(profile)}>{profile.user_id === currentUserId ? "Você" : profile.role === "super_admin" ? "Matriz" : "Gerenciar"}</Button></div>; })}{!profiles.length && <p className="p-6 text-sm text-muted-foreground">Nenhum usuário no seu escopo.</p>}</CardContent></Card>
+    </div>
+  </div>;
 }
 
 function Targets({ role, units, activeUnitId, indicators, sectors, targets }: { role: string; units: UnitRow[]; activeUnitId: string | null; indicators: IndicatorRow[]; sectors: SectorRow[]; targets: TargetRow[] }) {

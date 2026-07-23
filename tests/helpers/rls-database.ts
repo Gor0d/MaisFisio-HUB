@@ -32,7 +32,7 @@ export const ids = {
   },
 } as const;
 
-type DatabaseRole = "anon" | "authenticated";
+type DatabaseRole = "anon" | "authenticated" | "service_role";
 
 const bootstrapSql = `
   create role anon nologin;
