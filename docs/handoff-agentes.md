@@ -84,3 +84,9 @@ sem acessar produção. A suíte revelou mais três leituras globais
 (`units`, `service_sectors` e colaboradores ativos), fechadas na migração
 `202607230012`. Resultado final: lint, typecheck, 14 testes, build e
 `npm audit --omit=dev` aprovados.
+
+O primeiro P1 de UI do Codex também foi concluído no commit `c0a3c3a`.
+Admin e `super_admin` agora criam e editam setores escolhendo os serviços
+habilitados. A função SQL `save_sector_with_services` grava setor e
+`service_sectors` atomicamente e impede atuação fora da unidade. A suíte passou
+com 15 testes, incluindo criação, edição e negativas de autoridade.

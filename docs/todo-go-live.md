@@ -42,10 +42,13 @@ Itens de P2/P3 (auditoria, recuperação de senha, PDF, PWA, testes formais, go-
 
 ## P1 — Multi-unidade e administração
 
-- [~] (Codex) Completar o cadastro de setores por serviço.
+- [x] (Codex, `c0a3c3a`) Completar o cadastro de setores por serviço.
   - Ao criar um setor, permitir selecionar os serviços habilitados e gravar `service_sectors`.
   - Permitir editar posteriormente os serviços habilitados.
   - Critério de aceite: um setor novo da Santa Terezinha aparece imediatamente nos formulários dos serviços selecionados.
+  - Admin e `super_admin` possuem aba própria de setores; criação e edição são
+    atômicas pela função `save_sector_with_services`, que também valida unidade,
+    serviços ativos e autoridade. Coberto pela suíte RLS local.
 
 - [ ] (Codex) Completar a gestão de usuários.
   - Desativar e reativar acesso.
