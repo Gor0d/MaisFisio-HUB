@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { startOfMonth } from "date-fns";
 import { ReportsView } from "@/components/reports-view";
 import { SetupRequired } from "@/components/setup-required";
+import { fetchAllRows } from "@/lib/supabase/pagination";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile } from "@/lib/types";
@@ -17,9 +18,16 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const { data: profileRow } = await supabase.from("profiles").select("user_id,full_name,role,service_id").eq("user_id", user!.id).single();
   const units = await getUserUnits(supabase, profileRow as Profile);
   const activeUnitId = await getActiveUnitId(units, profileRow as Profile);
-  let metricsQuery = supabase.from("production_metrics").select("indicator_name,value,kind").gte("record_date", start).lte("record_date", end).limit(20000);
-  let scalesQuery = supabase.from("scale_assessment_results").select("scale_type,moment,total,improved").gte("assessment_date", start).lte("assessment_date", end).eq("complete", true).limit(20000);
-  if (activeUnitId) { metricsQuery = metricsQuery.eq("unit_id", activeUnitId); scalesQuery = scalesQuery.eq("unit_id", activeUnitId); }
-  const [metrics, scales] = await Promise.all([metricsQuery, scalesQuery]);
-  return <ReportsView month={month} metrics={metrics.data ?? []} scales={scales.data ?? []} />;
+
+  // Totais agregados no banco (soma/média/derivada por tipo de indicador) —
+  // sem risco de corte e sem somar percentuais como se fossem contagem.
+  const totalsQuery = supabase.rpc("production_metrics_totals", { p_start: start, p_end: end, p_unit: activeUnitId, p_service: null, p_sector: null });
+  const scales = await fetchAllRows<Record<string, unknown>>((from, to) => {
+    let q = supabase.from("scale_assessment_results").select("scale_type,moment,total,improved").gte("assessment_date", start).lte("assessment_date", end).eq("complete", true);
+    if (activeUnitId) q = q.eq("unit_id", activeUnitId);
+    return q.range(from, to);
+  });
+  const totals = await totalsQuery;
+
+  return <ReportsView month={month} totals={totals.data ?? []} scales={scales as never} />;
 }

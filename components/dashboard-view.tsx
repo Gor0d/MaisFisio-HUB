@@ -10,7 +10,7 @@ import { Select } from "@/components/ui/select";
 import { ptBRDate, ptBRNumber } from "@/lib/utils";
 
 type Metric = { record_date: string; indicator_code: string; indicator_name: string; kind: string; value: number | string | null; service_id: string; sector_id: string | null; shift: string | null; sector_type: string | null };
-type PrevMetric = { indicator_code: string; value: number | string | null };
+type Total = { indicator_id: string; indicator_code: string; indicator_name: string; kind: string; derived: boolean; total: number | string | null };
 type Scale = { scale_type: string; assessment_date: string; moment: string; total: number; entry_total: number | null; improved: boolean | null };
 type Service = { id: string; code: string; name: string };
 
@@ -43,18 +43,12 @@ const KPI_LABELS: Record<string, string> = {
   social_atendimentos: "Atendimentos Realizados", social_acolhimento: "Acolhimentos", social_alta: "Altas Hospitalares", social_evasoes: "Evasões",
 };
 
-function summarize(rows: { value: number | string | null; kind?: string }[], kind?: string) {
-  if (!rows.length) return null;
-  const values = rows.map((x) => Number(x.value ?? 0));
-  const sum = values.reduce((a, b) => a + b, 0);
-  return (kind ?? rows[0].kind) === "taxa" ? sum / values.length : sum;
-}
-
-export function DashboardView({ metrics, previous, scales, services, sectors, filters }: { metrics: Metric[]; previous: PrevMetric[]; scales: Scale[]; services: Service[]; sectors: { id: string; name: string }[]; filters: Record<string, string | undefined> }) {
+export function DashboardView({ metrics, totals, previousTotals, scales, services, sectors, filters }: { metrics: Metric[]; totals: Total[]; previousTotals: Total[]; scales: Scale[]; services: Service[]; sectors: { id: string; name: string }[]; filters: Record<string, string | undefined> }) {
   const orderedServices = SERVICE_ORDER.map((code) => services.find((s) => s.code === code)).filter((s): s is Service => Boolean(s));
   const activeService = services.find((s) => s.id === filters.servico);
   const theme = THEMES[activeService?.code ?? ""] ?? THEMES.fisioterapia;
   const sectorName = new Map(sectors.map((s) => [s.id, s.name]));
+  const previousByCode = new Map(previousTotals.map((t) => [t.indicator_code, t]));
 
   const tabHref = (servico?: string) => {
     const params = new URLSearchParams();
@@ -65,44 +59,48 @@ export function DashboardView({ metrics, previous, scales, services, sectors, fi
     return `/dashboard?${params.toString()}`;
   };
 
-  const sums = new Map<string, { name: string; value: number }>();
+  // Ranking e gráfico de tendência: só indicadores de contagem entram aqui —
+  // somar uma "taxa" (percentual) dia a dia não tem leitura válida (área
+  // empilhada de percentuais); os totais corretos por indicador já vêm
+  // agregados do banco (production_metrics_totals) em `totals`.
+  const ranked = totals.filter((t) => t.kind !== "taxa" && Number(t.total ?? 0) > 0).sort((a, b) => Number(b.total) - Number(a.total));
+  const series = ranked.slice(0, 3);
+  const seriesCodes = new Set(series.map((s) => s.indicator_code));
   const daily = new Map<string, Record<string, string | number>>();
   metrics.forEach((metric) => {
-    if (metric.kind === "taxa" && !activeService) return;
-    const value = Number(metric.value ?? 0);
-    if (metric.kind !== "taxa") {
-      const current = sums.get(metric.indicator_code) ?? { name: metric.indicator_name, value: 0 };
-      current.value += value; sums.set(metric.indicator_code, current);
-    }
+    if (!seriesCodes.has(metric.indicator_code)) return;
     const day = daily.get(metric.record_date) ?? { date: metric.record_date };
-    day[metric.indicator_name] = Number(day[metric.indicator_name] ?? 0) + value;
+    day[metric.indicator_name] = Number(day[metric.indicator_name] ?? 0) + Number(metric.value ?? 0);
     daily.set(metric.record_date, day);
   });
-  const ranked = [...sums.entries()].filter(([, x]) => x.value > 0).sort((a, b) => b[1].value - a[1].value);
-  const series = ranked.slice(0, 3);
-  const chart = [...daily.values()].map((row) => ({ ...row, label: ptBRDate.format(new Date(`${row.date}T00:00:00Z`)) }));
+  const chart = [...daily.values()].sort((a, b) => String(a.date).localeCompare(String(b.date))).map((row) => ({ ...row, label: ptBRDate.format(new Date(`${row.date}T00:00:00Z`)) }));
 
   const exits = scales.filter((s) => s.moment === "saida" && s.improved !== null);
   const improvements = exits.filter((s) => s.improved).length;
   const improvementRate = exits.length ? (improvements / exits.length) * 100 : 0;
 
-  // KPIs da especialidade com variação vs período anterior de mesma duração.
+  // KPIs da especialidade com variação vs período anterior de mesma duração —
+  // ambos os totais já vêm corretamente agregados do banco (soma, média ou
+  // soma(numerador)/soma(denominador), conforme o indicador).
   const kpis = (SERVICE_KPIS[activeService?.code ?? ""] ?? []).map((code) => {
-    const rows = metrics.filter((x) => x.indicator_code === code);
-    const kind = rows[0]?.kind;
-    const current = summarize(rows, kind) ?? 0;
-    const prev = summarize(previous.filter((x) => x.indicator_code === code), kind);
+    const row = totals.find((t) => t.indicator_code === code);
+    const current = Number(row?.total ?? 0);
+    const prevRow = previousByCode.get(code);
+    const prev = prevRow?.total != null ? Number(prevRow.total) : null;
     const delta = prev ? ((current - prev) / prev) * 100 : null;
-    return { code, label: rows[0]?.indicator_name ?? KPI_LABELS[code] ?? code, value: current, kind, delta };
+    return { code, label: row?.indicator_name ?? KPI_LABELS[code] ?? code, value: current, kind: row?.kind, delta };
   });
   const primaryCode = SERVICE_KPIS[activeService?.code ?? ""]?.[0];
   const primaryRows = metrics.filter((x) => x.indicator_code === primaryCode);
+  const primaryKind = totals.find((t) => t.indicator_code === primaryCode)?.kind;
   const primaryLabel = primaryRows[0]?.indicator_name ?? KPI_LABELS[primaryCode ?? ""] ?? "";
 
   const byDimension = (key: "shift" | "sector_id" | "sector_type", order?: string[]) => {
-    const acc = new Map<string, number>();
-    primaryRows.forEach((x) => { const raw = x[key]; if (!raw) return; const label = key === "sector_id" ? sectorName.get(raw) ?? "Outro" : raw; acc.set(label, (acc.get(label) ?? 0) + Number(x.value ?? 0)); });
-    const entries = [...acc.entries()].map(([label, value]) => ({ label, value }));
+    const sums = new Map<string, number>();
+    const counts = new Map<string, number>();
+    primaryRows.forEach((x) => { const raw = x[key]; if (!raw) return; const label = key === "sector_id" ? sectorName.get(raw) ?? "Outro" : raw; sums.set(label, (sums.get(label) ?? 0) + Number(x.value ?? 0)); counts.set(label, (counts.get(label) ?? 0) + 1); });
+    // Taxa: média por grupo (nunca soma de percentuais); contagem: soma normal.
+    const entries = [...sums.entries()].map(([label, sum]) => ({ label, value: primaryKind === "taxa" ? sum / (counts.get(label) ?? 1) : sum }));
     return order ? order.map((label) => entries.find((e) => e.label === label) ?? { label, value: 0 }).filter((e) => e.value > 0 || entries.some((x) => x.label === e.label)) : entries.sort((a, b) => b.value - a.value);
   };
 
@@ -145,7 +143,7 @@ export function DashboardView({ metrics, previous, scales, services, sectors, fi
         </section>
       ) : (
         <section className="metric-grid">
-          <MetricCard label={ranked[0]?.[1].name ?? "Produção registrada"} value={ptBRNumber.format(ranked[0]?.[1].value ?? 0)} icon={UsersRound} />
+          <MetricCard label={ranked[0]?.indicator_name ?? "Produção registrada"} value={ptBRNumber.format(Number(ranked[0]?.total ?? 0))} icon={UsersRound} />
           <MetricCard label="Avaliações completas" value={ptBRNumber.format(scales.length)} icon={Activity} />
           <MetricCard label="Saídas com melhora" value={ptBRNumber.format(improvements)} icon={TrendingUp} />
           <MetricCard label="Índice de melhora" value={`${ptBRNumber.format(improvementRate)}%`} icon={improvementRate >= 50 ? ArrowUpRight : ArrowDownRight} accent={improvementRate >= 50} />
@@ -154,7 +152,7 @@ export function DashboardView({ metrics, previous, scales, services, sectors, fi
 
       <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
         <Card><CardHeader><CardTitle>Evolução da produção</CardTitle><CardDescription>Três indicadores com maior volume no período.</CardDescription></CardHeader><CardContent>
-          {chart.length ? <div className="h-[330px] w-full"><ResponsiveContainer><AreaChart data={chart} margin={{ left: -15, right: 8 }}><defs>{SERIES_COLORS.map((color, i) => <linearGradient key={color} id={`fill-${i}`} x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={color} stopOpacity={0.28}/><stop offset="95%" stopColor={color} stopOpacity={0}/></linearGradient>)}</defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e4ebe8"/><XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} axisLine={false}/><YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false}/><Tooltip /><Legend />{series.map(([code, item], i) => <Area key={code} type="monotone" dataKey={item.name} stroke={SERIES_COLORS[i]} fill={`url(#fill-${i})`} strokeWidth={2} />)}</AreaChart></ResponsiveContainer></div> : <Empty />}
+          {chart.length ? <div className="h-[330px] w-full"><ResponsiveContainer><AreaChart data={chart} margin={{ left: -15, right: 8 }}><defs>{SERIES_COLORS.map((color, i) => <linearGradient key={color} id={`fill-${i}`} x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={color} stopOpacity={0.28}/><stop offset="95%" stopColor={color} stopOpacity={0}/></linearGradient>)}</defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e4ebe8"/><XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} axisLine={false}/><YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false}/><Tooltip /><Legend />{series.map((item, i) => <Area key={item.indicator_code} type="monotone" dataKey={item.indicator_name} stroke={SERIES_COLORS[i]} fill={`url(#fill-${i})`} strokeWidth={2} />)}</AreaChart></ResponsiveContainer></div> : <Empty />}
         </CardContent></Card>
 
         {showScales ? (
