@@ -144,12 +144,17 @@ Itens de P2/P3 (auditoria, recuperação de senha, PDF, PWA, testes formais, go-
 - [ ] Criar usuários de teste para todos os papéis.
   - Um `super_admin`, admins de duas unidades, coordenadores de serviços diferentes e colaboradores.
 
-- [~] (Codex) Criar testes de integração RLS contra Supabase de teste.
+- [x] (Codex, `11e2887`) Criar testes de integração RLS em PostgreSQL isolado.
   - Anônimo não lê dados.
   - Colaborador não acessa administração.
   - Coordenador fica limitado ao serviço e à unidade.
   - Admin fica limitado à unidade.
   - `super_admin` acessa visão consolidada.
+  - As 12 migrações são aplicadas do zero em PGlite (PostgreSQL real em
+    processo), com papéis e `auth.uid()` equivalentes aos do Supabase. Cinco
+    cenários executam as políticas de verdade sem tocar no banco de produção.
+  - O teste revelou e corrigiu a leitura global restante de `units`,
+    `service_sectors` e colaboradores ativos na migração `202607230012`.
 
 - [ ] Criar teste E2E do fluxo principal.
   - Login → lançamento de Fisioterapia → Barthel entrada → Barthel saída → dashboard.
