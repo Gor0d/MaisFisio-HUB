@@ -50,7 +50,7 @@ Itens de P2/P3 (auditoria, recuperação de senha, PDF, PWA, testes formais, go-
     atômicas pela função `save_sector_with_services`, que também valida unidade,
     serviços ativos e autoridade. Coberto pela suíte RLS local.
 
-- [ ] (Codex) Completar a gestão de usuários.
+- [~] (Codex) Completar a gestão de usuários.
   - Desativar e reativar acesso.
   - Alterar papel e serviço com validação de autoridade.
   - Adicionar e remover vínculos em múltiplas unidades.
