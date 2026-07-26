@@ -12,8 +12,11 @@ export async function getUserUnits(supabase: SupabaseClient, profile: Profile): 
     const { data } = await supabase.from("units").select("id,code,name").eq("active", true).order("name");
     return data ?? [];
   }
-  const { data } = await supabase.from("profile_units").select("units(id,code,name)").eq("user_id", profile.user_id);
-  return (data ?? []).flatMap((x) => (x.units ? [x.units as unknown as Unit] : [])).sort((a, b) => a.name.localeCompare(b.name));
+  const { data } = await supabase.from("profile_units").select("units(id,code,name,active)").eq("user_id", profile.user_id);
+  return (data ?? [])
+    .flatMap((x) => (x.units ? [x.units as unknown as Unit & { active: boolean }] : []))
+    .filter((x) => x.active)
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 // Unidade ativa da sessão: cookie válido → cookie; senão a primeira unidade.
