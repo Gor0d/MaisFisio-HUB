@@ -22,7 +22,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <div className="absolute -right-28 -top-32 size-[28rem] rounded-full border-[70px] border-white/5" />
         <div className="absolute -bottom-52 -left-28 size-[34rem] rounded-full bg-[#2e5080]" />
         <div className="relative flex items-center gap-3">
-          <Image src="/icon.png" alt="" width={46} height={46} priority />
+          {/* Fundo claro: o azul-marinho do ícone quase some sobre o hero
+              também escuro (navy sobre navy) sem esse contraste. */}
+          <div className="grid size-[52px] shrink-0 place-items-center rounded-xl bg-white/95 p-1.5"><Image src="/icon.png" alt="" width={40} height={40} /></div>
           <span className="font-display text-2xl font-bold tracking-tight">MaisFisio</span>
         </div>
         <div className="relative max-w-xl">
