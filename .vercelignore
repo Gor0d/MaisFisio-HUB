@@ -1,0 +1,10 @@
+# Nunca enviar no deploy: dados reais de pacientes/produção, artefatos
+# locais e coisas que a Vercel reconstrói sozinha.
+/backups
+/reports
+*.xlsx
+.env
+.env.local
+.env.*.local
+/supabase/.branches
+/supabase/.temp
