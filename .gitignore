@@ -16,6 +16,9 @@
 # planilha assistencial com dados de pacientes (LGPD) — nunca versionar
 *.xlsx
 
+# backups locais do banco (dados reais de pacientes/produção) — nunca versionar
+/backups/
+
 # Claude Code local
 .claude/
 

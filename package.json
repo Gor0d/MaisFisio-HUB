@@ -11,7 +11,8 @@
     "test": "vitest run --configLoader runner",
     "test:watch": "vitest --configLoader runner",
     "import:xlsx": "tsx scripts/import-xlsx.ts",
-    "import:xlsx:dry": "tsx scripts/import-xlsx.ts --dry-run"
+    "import:xlsx:dry": "tsx scripts/import-xlsx.ts --dry-run",
+    "backup:db": "node scripts/backup-database.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
@@ -23,6 +24,7 @@
     "jspdf": "^4.2.1",
     "lucide-react": "^0.542.0",
     "next": "^15.5.0",
+    "pg": "^8.22.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hook-form": "^7.62.0",

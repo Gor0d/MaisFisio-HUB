@@ -187,7 +187,8 @@ Itens de P2/P3 (auditoria, recuperação de senha, PDF, PWA, testes formais, go-
 - [ ] Confirmar cadastro público desabilitado e acesso somente por convite.
 - [ ] Configurar senha mínima, proteção contra senhas vazadas e SMTP institucional.
 - [ ] Configurar monitoramento do `/api/health` e alertas.
-- [ ] Confirmar backups/PITR conforme o plano contratado do Supabase.
+- [ ] Confirmar backups/PITR conforme o plano contratado do Supabase — **o plano Free não tem backup gerenciado nenhum**; Pro ($25/mês) dá backup diário com 7 dias de retenção; PITR (recuperação a qualquer segundo) é add-on pago à parte. Isto é o investimento mais importante para "nunca perder dados" — decisão do usuário, aguardando confirmação do plano.
+  - Camada extra (já implementada, `26/07`): `npm run backup:db` (`scripts/backup-database.mjs`) exporta todas as 19 tabelas para JSON em `backups/<timestamp>/` — cópia local independente do Supabase. Não substitui backup gerenciado/PITR, é redundância adicional. Rodar periodicamente (ideal: agendar via Task Scheduler do Windows) e manter a pasta `backups/` fora do Git (dados de pacientes) e idealmente também copiada para um segundo local (nuvem pessoal, HD externo).
 - [ ] Distribuir o guia de segurança à equipe.
 - [ ] Treinar administradores, coordenadores e colaboradores.
 - [ ] Fazer liberação piloto em uma unidade/setor antes da expansão.
