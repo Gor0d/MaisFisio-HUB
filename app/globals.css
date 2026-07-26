@@ -1,18 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7faf9;
-  --foreground: #17221f;
+  /* Paleta institucional MaisFisio, extraída da logo oficial. */
+  --background: #f6f8fb;
+  --foreground: #16233a;
   --card: #ffffff;
-  --card-foreground: #17221f;
-  --primary: #087f5b;
+  --card-foreground: #16233a;
+  --primary: #2e5080;
   --primary-foreground: #ffffff;
-  --secondary: #e5f5ef;
-  --secondary-foreground: #075c44;
-  --muted: #eef3f1;
-  --muted-foreground: #63716d;
-  --border: #dce5e2;
-  --input: #cfdad6;
+  --secondary: #e8edf5;
+  --secondary-foreground: #1e3654;
+  --muted: #eef1f6;
+  --muted-foreground: #5f6c81;
+  --border: #dbe2ec;
+  --input: #cbd5e3;
   --destructive: #c73939;
 }
 
@@ -38,7 +39,7 @@
 html { background: var(--background); }
 body { min-height: 100vh; background: var(--background); color: var(--foreground); }
 button, a, select, input, textarea { -webkit-tap-highlight-color: transparent; }
-::selection { background: #b9ead8; }
+::selection { background: #c7d6ec; }
 
 .page-title { font-family: var(--font-manrope); font-size: clamp(1.55rem, 4vw, 2rem); font-weight: 700; letter-spacing: -0.035em; }
 .page-description { margin-top: .35rem; color: var(--muted-foreground); font-size: .925rem; }

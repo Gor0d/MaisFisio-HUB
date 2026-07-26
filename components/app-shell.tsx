@@ -39,7 +39,7 @@ export function AppShell({ profile, units, activeUnitId, children }: { profile: 
   const Sidebar = () => (
     <>
       <div className="flex h-20 items-center gap-3 border-b px-5">
-        <Image src="/icon.svg" width={40} height={40} alt="" className="rounded-xl" />
+        <Image src="/icon.png" width={40} height={40} alt="" className="rounded-xl" />
         <div><p className="font-display text-lg font-bold tracking-tight">MaisFisio</p><p className="text-[11px] text-muted-foreground">Indicadores assistenciais</p></div>
       </div>
       <UnitSwitcher />
@@ -66,7 +66,7 @@ export function AppShell({ profile, units, activeUnitId, children }: { profile: 
       <div className="min-w-0">
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/90 px-4 backdrop-blur md:hidden">
           <button className="grid size-10 place-items-center rounded-xl border bg-card" onClick={() => setOpen(true)} aria-label="Abrir menu"><Menu className="size-5" /></button>
-          <div className="flex items-center gap-2"><Image src="/icon.svg" width={30} height={30} alt="" className="rounded-lg" /><span className="font-display font-bold">MaisFisio</span></div>
+          <div className="flex items-center gap-2"><Image src="/icon.png" width={30} height={30} alt="" className="rounded-lg" /><span className="font-display font-bold">MaisFisio</span></div>
           <div className="grid size-9 place-items-center rounded-full bg-secondary text-xs font-bold text-secondary-foreground">{profile.full_name.slice(0, 2).toUpperCase()}</div>
         </header>
         <main className="mx-auto w-full max-w-[1500px] p-4 pb-24 sm:p-6 lg:p-8">{children}</main>

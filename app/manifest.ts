@@ -7,9 +7,12 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Coleta e acompanhamento de indicadores assistenciais",
     start_url: "/dashboard",
     display: "standalone",
-    background_color: "#f7faf9",
-    theme_color: "#087f5b",
+    background_color: "#f6f8fb",
+    theme_color: "#2e5080",
     lang: "pt-BR",
-    icons: [{ src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "maskable" }],
+    icons: [
+      { src: "/icon.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: "/icon.png", sizes: "512x512", type: "image/png", purpose: "any" },
+    ],
   };
 }

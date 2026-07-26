@@ -7,12 +7,12 @@ export const metadata: Metadata = {
   description: "Indicadores assistenciais do Hospital Público Estadual Galileu",
   applicationName: "MaisFisio",
   manifest: "/manifest.webmanifest",
-  icons: { icon: "/icon.svg", apple: "/icon.svg" },
+  icons: { icon: "/icon.png", apple: "/apple-icon.png" },
   // Sistema interno da equipe: não deve aparecer em buscadores.
   robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } },
 };
 
-export const viewport: Viewport = { themeColor: "#087f5b", width: "device-width", initialScale: 1 };
+export const viewport: Viewport = { themeColor: "#2e5080", width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (

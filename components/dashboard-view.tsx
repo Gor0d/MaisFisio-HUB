@@ -16,16 +16,18 @@ type Service = { id: string; code: string; name: string };
 
 const scaleNames: Record<string, string> = { barthel: "Barthel", mrc: "MRC", melhoria_uti: "Melhoria UTI" };
 
-// Paleta validada (scripts/validate_palette.js — todos os checks CVD/contraste).
+// Paleta institucional (fisioterapia usa a família do azul-marinho da marca)
+// validada em scripts/validate_palette.js — todos os checks CVD/contraste
+// passam nesta ordem exata de exibição das abas (SERVICE_ORDER).
 const SERVICE_ORDER = ["fisioterapia", "terapia_ocupacional", "psicologia", "fonoaudiologia", "assistencia_social"];
 const THEMES: Record<string, { accent: string; soft: string }> = {
-  fisioterapia: { accent: "#087f5b", soft: "#e6f4ef" },
+  fisioterapia: { accent: "#1d5ab0", soft: "#e7edf7" },
   terapia_ocupacional: { accent: "#d97706", soft: "#faf0e0" },
   psicologia: { accent: "#7c3aed", soft: "#f1ebfc" },
-  fonoaudiologia: { accent: "#2563eb", soft: "#e8eefc" },
+  fonoaudiologia: { accent: "#0891b2", soft: "#e3f2f6" },
   assistencia_social: { accent: "#db2777", soft: "#fbe9f1" },
 };
-const SERIES_COLORS = ["#087f5b", "#d97706", "#2563eb"];
+const SERIES_COLORS = ["#1d5ab0", "#d97706", "#0891b2"];
 
 // KPIs de destaque por especialidade (equivalentes aos cartões do B.I. antigo).
 const SERVICE_KPIS: Record<string, string[]> = {
