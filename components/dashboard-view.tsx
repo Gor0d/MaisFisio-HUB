@@ -1,18 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { Activity, ArrowDownRight, ArrowUpRight, CalendarDays, Download, Minus, TrendingUp, UsersRound } from "lucide-react";
+import { Activity, ArrowDownRight, ArrowUpRight, CalendarDays, Download, FileSpreadsheet, Minus, TrendingUp, UsersRound } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { NamedDateField } from "@/components/ui/date-field";
 import { Select } from "@/components/ui/select";
+import { effectiveTarget, targetSituation, type IndicatorTarget, type TargetSituation } from "@/lib/targets";
 import { ptBRDate, ptBRNumber } from "@/lib/utils";
 
-type Metric = { record_date: string; indicator_code: string; indicator_name: string; kind: string; value: number | string | null; service_id: string; sector_id: string | null; shift: string | null; sector_type: string | null };
+type Metric = { record_date: string; indicator_code: string; indicator_name: string; kind: string; value: number | string | null; service_id: string; sector_id: string | null; unit_id: string; shift: string | null; sector_type: string | null; collaborator_id: string | null; context: string };
 type Total = { indicator_id: string; indicator_code: string; indicator_name: string; kind: string; derived: boolean; total: number | string | null };
 type Scale = { scale_type: string; assessment_date: string; moment: string; total: number; entry_total: number | null; improved: boolean | null };
 type Service = { id: string; code: string; name: string };
+type Collaborator = { id: string; canonical_name: string; service_id: string };
+type Unit = { id: string; name: string };
 
 const scaleNames: Record<string, string> = { barthel: "Barthel", mrc: "MRC", melhoria_uti: "Melhoria UTI" };
 
@@ -45,11 +49,14 @@ const KPI_LABELS: Record<string, string> = {
   social_atendimentos: "Atendimentos Realizados", social_acolhimento: "Acolhimentos", social_alta: "Altas Hospitalares", social_evasoes: "Evasões",
 };
 
-export function DashboardView({ metrics, totals, previousTotals, scales, services, sectors, filters }: { metrics: Metric[]; totals: Total[]; previousTotals: Total[]; scales: Scale[]; services: Service[]; sectors: { id: string; name: string }[]; filters: Record<string, string | undefined> }) {
+export function DashboardView({ metrics, totals, previousTotals, scales, services, sectors, collaborators, units, targets, activeUnitId, filters }: { metrics: Metric[]; totals: Total[]; previousTotals: Total[]; scales: Scale[]; services: Service[]; sectors: { id: string; name: string }[]; collaborators: Collaborator[]; units: Unit[]; targets: IndicatorTarget[]; activeUnitId: string | null; filters: Record<string, string | undefined> }) {
   const orderedServices = SERVICE_ORDER.map((code) => services.find((s) => s.code === code)).filter((s): s is Service => Boolean(s));
   const activeService = services.find((s) => s.id === filters.servico);
   const theme = THEMES[activeService?.code ?? ""] ?? THEMES.fisioterapia;
   const sectorName = new Map(sectors.map((s) => [s.id, s.name]));
+  const serviceName = new Map(services.map((service) => [service.id, service.name]));
+  const collaboratorName = new Map(collaborators.map((collaborator) => [collaborator.id, collaborator.canonical_name]));
+  const unitName = new Map(units.map((unit) => [unit.id, unit.name]));
   const previousByCode = new Map(previousTotals.map((t) => [t.indicator_code, t]));
 
   const tabHref = (servico?: string) => {
@@ -57,6 +64,8 @@ export function DashboardView({ metrics, totals, previousTotals, scales, service
     if (filters.de) params.set("de", filters.de);
     if (filters.ate) params.set("ate", filters.ate);
     if (filters.setor) params.set("setor", filters.setor);
+    if (filters.turno) params.set("turno", filters.turno);
+    if (filters.colaborador) params.set("colaborador", filters.colaborador);
     if (servico) params.set("servico", servico);
     return `/dashboard?${params.toString()}`;
   };
@@ -90,7 +99,10 @@ export function DashboardView({ metrics, totals, previousTotals, scales, service
     const prevRow = previousByCode.get(code);
     const prev = prevRow?.total != null ? Number(prevRow.total) : null;
     const delta = prev ? ((current - prev) / prev) * 100 : null;
-    return { code, label: row?.indicator_name ?? KPI_LABELS[code] ?? code, value: current, kind: row?.kind, delta };
+    const target = row
+      ? effectiveTarget(targets, row.indicator_id, activeUnitId, filters.setor ?? null)
+      : null;
+    return { code, label: row?.indicator_name ?? KPI_LABELS[code] ?? code, value: current, kind: row?.kind, delta, situation: targetSituation(current, target) };
   });
   const primaryCode = SERVICE_KPIS[activeService?.code ?? ""]?.[0];
   const primaryRows = metrics.filter((x) => x.indicator_code === primaryCode);
@@ -106,11 +118,35 @@ export function DashboardView({ metrics, totals, previousTotals, scales, service
     return order ? order.map((label) => entries.find((e) => e.label === label) ?? { label, value: 0 }).filter((e) => e.value > 0 || entries.some((x) => x.label === e.label)) : entries.sort((a, b) => b.value - a.value);
   };
 
+  const exportRows = metrics.map((metric) => ({
+    Unidade: unitName.get(metric.unit_id) ?? "Todas as unidades",
+    Data: metric.record_date,
+    Serviço: serviceName.get(metric.service_id) ?? "",
+    Turno: metric.shift ?? "",
+    Setor: sectorName.get(metric.sector_id ?? "") ?? "",
+    "Tipo de setor": metric.sector_type ?? "",
+    Colaborador: collaboratorName.get(metric.collaborator_id ?? "") ?? "",
+    Contexto: metric.context,
+    "Código do indicador": metric.indicator_code,
+    Indicador: metric.indicator_name,
+    Tipo: metric.kind,
+    Valor: metric.value ?? "",
+  }));
+
   function exportCsv() {
-    const rows = [["Data", "Indicador", "Valor"], ...metrics.map((m) => [m.record_date, m.indicator_name, String(m.value ?? "")])];
-    const csv = "﻿" + rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(";")).join("\n");
+    const headers = Object.keys(exportRows[0] ?? {});
+    const rows = [headers, ...exportRows.map((row) => headers.map((header) => row[header as keyof typeof row]))];
+    const csv = "\uFEFF" + rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(";")).join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a"); link.href = url; link.download = `maisfisio-${filters.de}-${filters.ate}.csv`; link.click(); URL.revokeObjectURL(url);
+  }
+
+  async function exportExcel() {
+    const XLSX = await import("xlsx");
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Produção assistencial");
+    XLSX.writeFile(workbook, `maisfisio-${filters.de}-${filters.ate}.xlsx`, { compression: true });
   }
 
   const showScales = !activeService || activeService.code === "fisioterapia";
@@ -119,7 +155,7 @@ export function DashboardView({ metrics, totals, previousTotals, scales, service
     <div className="grid gap-6">
       <header className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
         <div><h1 className="page-title">{activeService ? activeService.name : "Visão geral"}</h1><p className="page-description">{activeService ? `Produção de ${activeService.name} no período.` : "Produção assistencial e evolução clínica no período."}</p></div>
-        <Button variant="outline" onClick={exportCsv} disabled={!metrics.length}><Download className="size-4" />Exportar CSV</Button>
+        <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={exportCsv} disabled={!metrics.length}><Download className="size-4" />Exportar CSV</Button><Button variant="outline" onClick={exportExcel} disabled={!metrics.length}><FileSpreadsheet className="size-4" />Exportar Excel</Button></div>
       </header>
 
       <nav className="flex gap-2 overflow-x-auto pb-1" aria-label="Especialidades">
@@ -136,12 +172,14 @@ export function DashboardView({ metrics, totals, previousTotals, scales, service
         <div className="field col-span-2"><label className="text-xs font-semibold text-muted-foreground">De</label><NamedDateField name="de" defaultIso={filters.de} /></div>
         <div className="field col-span-2"><label className="text-xs font-semibold text-muted-foreground">Até</label><NamedDateField name="ate" defaultIso={filters.ate} /></div>
         <div className="field col-span-3"><label className="text-xs font-semibold text-muted-foreground">Setor</label><Select name="setor" defaultValue={filters.setor ?? ""}><option value="">Todos</option>{sectors.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select></div>
+        <div className="field col-span-2"><label className="text-xs font-semibold text-muted-foreground">Turno</label><Select name="turno" defaultValue={filters.turno ?? ""}><option value="">Todos</option><option value="MANHÃ">Manhã</option><option value="TARDE">Tarde</option><option value="NOITE">Noite</option></Select></div>
+        <div className="field col-span-4"><label className="text-xs font-semibold text-muted-foreground">Colaborador</label><Select name="colaborador" defaultValue={filters.colaborador ?? ""}><option value="">Todos</option>{collaborators.map((collaborator) => <option key={collaborator.id} value={collaborator.id}>{collaborator.canonical_name} · {serviceName.get(collaborator.service_id) ?? "Serviço"}</option>)}</Select></div>
         <Button type="submit" className="col-span-2" style={{ background: theme.accent }}><CalendarDays className="size-4" />Aplicar</Button>
       </form></CardContent></Card>
 
       {activeService ? (
         <section className="metric-grid">
-          {kpis.map((kpi) => <KpiCard key={kpi.code} label={kpi.label} value={kpi.kind === "taxa" ? `${ptBRNumber.format(kpi.value)}%` : ptBRNumber.format(kpi.value)} delta={kpi.delta} accent={theme.accent} soft={theme.soft} />)}
+          {kpis.map((kpi) => <KpiCard key={kpi.code} label={kpi.label} value={kpi.kind === "taxa" ? `${ptBRNumber.format(kpi.value)}%` : ptBRNumber.format(kpi.value)} kind={kpi.kind} delta={kpi.delta} situation={kpi.situation} accent={theme.accent} soft={theme.soft} />)}
         </section>
       ) : (
         <section className="metric-grid">
@@ -178,12 +216,16 @@ export function DashboardView({ metrics, totals, previousTotals, scales, service
   );
 }
 
-function KpiCard({ label, value, delta, accent, soft }: { label: string; value: string; delta: number | null; accent: string; soft: string }) {
+function KpiCard({ label, value, kind, delta, situation, accent, soft }: { label: string; value: string; kind?: string; delta: number | null; situation: TargetSituation | null; accent: string; soft: string }) {
   const Arrow = delta === null ? Minus : delta >= 0 ? ArrowUpRight : ArrowDownRight;
+  const targetValue = situation
+    ? `${ptBRNumber.format(Number(situation.target.target_value))}${kind === "taxa" ? "%" : ""}`
+    : null;
   return <Card className="overflow-hidden border-t-4" style={{ borderTopColor: accent }}><CardContent className="pt-5 md:pt-6">
     <p className="truncate text-sm text-muted-foreground" title={label}>{label}</p>
     <p className="mt-2 font-display text-3xl font-bold tracking-tight tabular-nums">{value}</p>
     <p className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground"><span className="grid size-5 place-items-center rounded-full" style={{ background: soft, color: accent }}><Arrow className="size-3.5" /></span>{delta === null ? "sem período anterior" : `${delta >= 0 ? "+" : ""}${ptBRNumber.format(delta)}% vs período anterior`}</p>
+    {situation && <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3 text-xs"><Badge className={situation.achieved ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}>{situation.achieved ? "Meta atingida" : "Meta não atingida"}</Badge><span className="text-muted-foreground">Meta {situation.target.comparison === "maximo" ? "≤" : "≥"} {targetValue}</span></div>}
   </CardContent></Card>;
 }
 

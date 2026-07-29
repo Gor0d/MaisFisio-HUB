@@ -12,7 +12,7 @@ export default async function AdminPage() {
   // Reaproveita usuário/perfil/unidades já buscados pelo layout (React cache()).
   const { supabase, userId, profile, units, activeUnitId } = await getSession();
   if (profile.role === "colaborador") redirect("/dashboard");
-  const [services, profiles, profileUnits, collaborators, collaboratorUnits, indicators, sectors, serviceSectors, targets, audit] = await Promise.all([
+  const [services, profiles, profileUnits, collaborators, collaboratorUnits, indicators, sectors, serviceSectors, targets] = await Promise.all([
     supabase.from("services").select("id,name,code").eq("active", true).order("name"),
     supabase.from("profiles").select("user_id,full_name,role,service_id,active").order("full_name"),
     supabase.from("profile_units").select("user_id,unit_id"),
@@ -22,7 +22,29 @@ export default async function AdminPage() {
     supabase.from("sectors").select("id,unit_id,code,name,context").eq("active", true).order("name"),
     supabase.from("service_sectors").select("service_id,sector_id"),
     supabase.from("indicator_targets").select("id,target_value,comparison,valid_from,valid_until,indicator_id,unit_id,sector_id,indicators(name),sectors(name),units(name)").order("valid_from", { ascending: false }),
-    supabase.from("audit_logs").select("id,table_name,action,changed_at,record_id,profiles:changed_by(full_name)").order("changed_at", { ascending: false }).limit(100),
   ]);
-  return <AdminView role={profile.role} currentUserId={userId!} currentServiceId={profile.service_id} units={units} activeUnitId={activeUnitId} services={services.data ?? []} profiles={profiles.data ?? []} profileUnits={profileUnits.data ?? []} collaborators={collaborators.data ?? []} collaboratorUnits={collaboratorUnits.data ?? []} indicators={indicators.data ?? []} sectors={sectors.data ?? []} serviceSectors={serviceSectors.data ?? []} targets={targets.data ?? []} audit={audit.data ?? []} />;
+
+  const allProfileUnits = profileUnits.data ?? [];
+  const allCollaboratorUnits = collaboratorUnits.data ?? [];
+  const visibleProfileIds = activeUnitId
+    ? new Set(allProfileUnits.filter((link) => link.unit_id === activeUnitId).map((link) => link.user_id))
+    : null;
+  const visibleCollaboratorIds = activeUnitId
+    ? new Set(allCollaboratorUnits.filter((link) => link.unit_id === activeUnitId).map((link) => link.collaborator_id))
+    : null;
+  const visibleProfiles = (profiles.data ?? []).filter((item) =>
+    !visibleProfileIds || visibleProfileIds.has(item.user_id) || item.role === "super_admin");
+  const visibleCollaborators = (collaborators.data ?? []).filter((item) =>
+    !visibleCollaboratorIds || visibleCollaboratorIds.has(item.id));
+  const visibleSectors = (sectors.data ?? []).filter((item) =>
+    !activeUnitId || item.unit_id === activeUnitId);
+  const visibleSectorIds = new Set(visibleSectors.map((sector) => sector.id));
+  const visibleTargets = (targets.data ?? []).filter((item) =>
+    !activeUnitId || item.unit_id === null || item.unit_id === activeUnitId);
+  const audit = await supabase.rpc("admin_audit_logs", {
+    p_unit: activeUnitId,
+    p_limit: 100,
+  });
+
+  return <AdminView role={profile.role} currentUserId={userId!} currentServiceId={profile.service_id} units={units} activeUnitId={activeUnitId} services={services.data ?? []} profiles={visibleProfiles} profileUnits={allProfileUnits} collaborators={visibleCollaborators} collaboratorUnits={allCollaboratorUnits} indicators={indicators.data ?? []} sectors={visibleSectors} serviceSectors={(serviceSectors.data ?? []).filter((link) => visibleSectorIds.has(link.sector_id))} targets={visibleTargets} audit={audit.data ?? []} />;
 }

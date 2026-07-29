@@ -314,4 +314,176 @@ describe("RLS executada em PostgreSQL", () => {
       ids.units.terezinha,
     ].sort());
   });
+
+  it("provisiona convite de forma atômica, idempotente e recuperável", async () => {
+    const invitedUserId = "40000000-0000-4000-8000-000000000101";
+    const rejectedUserId = "40000000-0000-4000-8000-000000000102";
+
+    await db.query(
+      `insert into auth.users (id, email, raw_user_meta_data) values
+        ($1, 'convite.ok@rls.test', '{"full_name":"Convite OK"}'),
+        ($2, 'convite.rejeitado@rls.test', '{"full_name":"Convite Rejeitado"}')`,
+      [invitedUserId, rejectedUserId],
+    );
+
+    const provision = (actorId: string, targetId: string, serviceId: string) => queryAs<{ collaborator_id: string }>(
+      db,
+      "service_role",
+      null,
+      `select public.admin_provision_invited_user(
+        $1::uuid, $2::uuid, 'Profissional Convidado', 'colaborador',
+        $3::uuid, $4::uuid
+      ) as collaborator_id`,
+      [actorId, targetId, serviceId, ids.units.galileu],
+    );
+
+    const first = await provision(ids.users.adminGalileu, invitedUserId, ids.services.physio);
+    const retry = await provision(ids.users.adminGalileu, invitedUserId, ids.services.physio);
+    expect(retry.rows[0].collaborator_id).toBe(first.rows[0].collaborator_id);
+
+    const state = await queryAs<{ role: string; profile_units: number; collaborators: number; collaborator_units: number }>(
+      db,
+      "service_role",
+      null,
+      `select
+        p.role::text as role,
+        (select count(*)::int from public.profile_units where user_id = p.user_id) as profile_units,
+        (select count(*)::int from public.collaborators where user_id = p.user_id) as collaborators,
+        (
+          select count(*)::int
+          from public.collaborator_units cu
+          join public.collaborators c on c.id = cu.collaborator_id
+          where c.user_id = p.user_id
+        ) as collaborator_units
+      from public.profiles p
+      where p.user_id = $1`,
+      [invitedUserId],
+    );
+    expect(state.rows).toEqual([{
+      role: "colaborador",
+      profile_units: 1,
+      collaborators: 1,
+      collaborator_units: 1,
+    }]);
+
+    await expect(provision(
+      ids.users.coordinatorPhysio,
+      rejectedUserId,
+      ids.services.speech,
+    )).rejects.toThrow(/próprio serviço/i);
+
+    const rolledBack = await queryAs<{ role: string; service_id: string | null; unit_links: number; collaborators: number }>(
+      db,
+      "service_role",
+      null,
+      `select
+        p.role::text as role,
+        p.service_id,
+        (select count(*)::int from public.profile_units where user_id = p.user_id) as unit_links,
+        (select count(*)::int from public.collaborators where user_id = p.user_id) as collaborators
+      from public.profiles p
+      where p.user_id = $1`,
+      [rejectedUserId],
+    );
+    expect(rolledBack.rows).toEqual([{
+      role: "colaborador",
+      service_id: null,
+      unit_links: 0,
+      collaborators: 0,
+    }]);
+  });
+
+  it("agrega KPIs com turno e colaborador no mesmo recorte do dashboard", async () => {
+    const indicatorId = "60000000-0000-4000-8000-000000000101";
+    const afternoonRecordId = "70000000-0000-4000-8000-000000000101";
+    const nightRecordId = "70000000-0000-4000-8000-000000000102";
+
+    await queryAs(
+      db,
+      "service_role",
+      null,
+      `insert into public.indicators (
+        id, service_id, code, name, context, kind
+      ) values (
+        $1, $2, 'rls_filtro_dashboard', 'RLS Filtro Dashboard', 'geral', 'contagem'
+      )`,
+      [indicatorId, ids.services.physio],
+    );
+    await queryAs(
+      db,
+      "service_role",
+      null,
+      `insert into public.production_records (
+        id, unit_id, service_id, record_date, shift, sector_id,
+        collaborator_id, context, created_by
+      ) values
+        ($1, $2, $3, '2026-07-10', 'TARDE', $4, $5, 'geral', $6),
+        ($7, $2, $3, '2026-07-10', 'NOITE', $4, $8, 'geral', $6)`,
+      [
+        afternoonRecordId,
+        ids.units.galileu,
+        ids.services.physio,
+        ids.sectors.galileu,
+        ids.collaborators.galileu,
+        ids.users.adminGalileu,
+        nightRecordId,
+        ids.collaborators.coordinatorPhysio,
+      ],
+    );
+    await queryAs(
+      db,
+      "service_role",
+      null,
+      `insert into public.production_values (record_id, indicator_id, numeric_value) values
+        ($1, $2, 5),
+        ($3, $2, 7)`,
+      [afternoonRecordId, indicatorId, nightRecordId],
+    );
+
+    const total = async (shift: string | null, collaboratorId: string | null) => {
+      const result = await queryAs<{ total: string | number | null }>(
+        db,
+        "authenticated",
+        ids.users.adminGalileu,
+        `select total
+        from public.production_metrics_totals(
+          '2026-07-01'::date, '2026-07-31'::date, $1::uuid, $2::uuid,
+          null::uuid, $3::public.work_shift, $4::uuid
+        )
+        where indicator_id = $5`,
+        [ids.units.galileu, ids.services.physio, shift, collaboratorId, indicatorId],
+      );
+      return result.rows[0].total === null ? null : Number(result.rows[0].total);
+    };
+
+    expect(await total(null, null)).toBe(12);
+    expect(await total("TARDE", null)).toBe(5);
+    expect(await total(null, ids.collaborators.coordinatorPhysio)).toBe(7);
+    expect(await total("TARDE", ids.collaborators.coordinatorPhysio)).toBeNull();
+  });
+
+  it("filtra a auditoria administrativa pela unidade ativa", async () => {
+    await queryAs(
+      db,
+      "service_role",
+      null,
+      `insert into public.audit_logs (
+        table_name, record_id, action, new_data, changed_by, changed_at
+      ) values
+        ('production_records', 'auditoria-galileu', 'INSERT', jsonb_build_object('unit_id', $1::text), $3, now() + interval '1 minute'),
+        ('production_records', 'auditoria-terezinha', 'INSERT', jsonb_build_object('unit_id', $2::text), $3, now() + interval '2 minutes')`,
+      [ids.units.galileu, ids.units.terezinha, ids.users.adminGalileu],
+    );
+
+    const audit = await queryAs<{ record_id: string }>(
+      db,
+      "authenticated",
+      ids.users.adminGalileu,
+      "select record_id from public.admin_audit_logs($1::uuid, 100)",
+      [ids.units.galileu],
+    );
+    const recordIds = audit.rows.map((row) => row.record_id);
+    expect(recordIds).toContain("auditoria-galileu");
+    expect(recordIds).not.toContain("auditoria-terezinha");
+  });
 });
