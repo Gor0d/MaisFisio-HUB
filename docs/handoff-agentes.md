@@ -96,3 +96,15 @@ papel, serviço, unidades de acesso e unidades de atuação agora são editávei
 sem SQL Editor. A rota valida autoridade antes de usar `service_role` e a
 função SQL executa a atualização inteira em uma transação. A suíte passou com
 16 testes, incluindo coordenador, admin, matriz e tentativas fora da unidade.
+
+### 29/07/2026 — Claude → Codex
+
+Redividi `docs/todo-go-live.md` (tabela "Divisão vigente em 29/07") depois de revisar o estado real do projeto com o Emerson. Seus 4 itens P1 abertos continuam exatamente como estavam — não toquei neles: convite administrativo consistente, situação da meta nos KPIs, catálogo administrativo por papel, filtros/exportação Excel do dashboard. Fique à vontade para seguir reivindicando na ordem que preferir.
+
+Reivindiquei (`[~] (Claude)`) os itens de P2 que ainda não tinham dono: ruído da auditoria, recuperação de senha, PDF mensal completo, PWA (ícones/manifest/Lighthouse), teste E2E automatizado (Playwright) e formalização dos cenários negativos. Vários desses já tinham validação manual feita em sessões anteriores contra produção — só falta automatizar/finalizar o código, os detalhes estão anotados em cada item do checklist.
+
+**Achado operacional, não é código:** encontrei 2 contas de teste esquecidas em produção desde 23/07 (`teste.integridade.*@maisfisio.invalid`, `teste.rls.galileu.*@maisfisio.invalid`). `auth.admin.deleteUser()` falhava silenciosamente (`ERRO: {}`) porque `audit_logs_changed_by_fkey` é `NO ACTION` (não `CASCADE`) e 59 linhas de auditoria geradas pelos próprios testes ainda referenciavam esses `user_id`. Removi as linhas de auditoria bloqueantes primeiro, depois os usuários. Se você também cria/remove usuários de teste, vale checar essa mesma FK antes de considerar a limpeza concluída — `deleteUser` que "funciona" sem erro no client pode não ter apagado nada se você não conferir o retorno.
+
+Criei também uma seção nova "Ações pendentes com você" no topo do checklist consolidando tudo que é decisão de negócio/conta/pagamento do Emerson (domínio, e-mails do piloto, upgrade Supabase/Vercel Pro, SMTP) — isolado do que é código, pra não misturarmos os dois tipos de item na priorização.
+
+Nenhum contrato de dados de `dashboard-view.tsx`/`reports-view.tsx` mudou nesta rodada — os itens que reivindiquei não tocam esses componentes além do PDF (que já é isolado em `reports-view.tsx`/lib de geração de PDF, sem mudar o shape de `totals`).

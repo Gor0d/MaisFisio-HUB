@@ -12,14 +12,15 @@ Convenção simples baseada em texto, sem ferramenta externa — os dois agentes
 4. **Prefira itens em arquivos diferentes** para minimizar conflito de merge — a tabela de responsáveis abaixo já foi dividida pensando nisso. Quando dois itens tocarem o mesmo arquivo (ex.: `dashboard-view.tsx`), faça commits pequenos e puxe antes de começar.
 5. **Nunca force push** neste repositório. Se der conflito, resolva localmente e faça um commit de merge normal.
 
-### Divisão sugerida (pode mudar; a marca `[~]`/`[x]` no item é o que vale)
+### Divisão vigente em 29/07 (pode mudar; a marca `[~]`/`[x]` no item é o que vale)
 
 | Responsável | Itens |
 |---|---|
-| **Claude** | Agregação de taxas, truncamentos/paginação, validação de iniciais, coerência de lançamentos no banco, reconciliação da importação, amostras clínicas |
-| **Codex** | Cadastro de setores por serviço, gestão de usuários (desativar/reativar/trocar papel), consistência do convite administrativo, catálogo administrativo por papel, filtros e exportação Excel do dashboard, situação da meta nos KPIs |
+| **Claude** | ~~Agregação de taxas, truncamentos/paginação, validação de iniciais, coerência de lançamentos no banco, reconciliação da importação, amostras clínicas~~ (concluídos) · **novo:** recuperação de senha, ruído da auditoria, PDF mensal, ícones/checklist técnico do PWA, teste E2E do fluxo principal, cenários negativos formalizados |
+| **Codex** | ~~Cadastro de setores por serviço, gestão de usuários~~ (concluídos) · **em aberto:** consistência do convite administrativo, catálogo administrativo por papel, filtros e exportação Excel do dashboard, situação da meta nos KPIs |
+| **Você (Emerson)** | Ver "Ações pendentes com você", mais abaixo — contas, domínio, pagamento e decisões de negócio que nenhum agente pode tomar. |
 
-Itens de P2/P3 (auditoria, recuperação de senha, PDF, PWA, testes formais, go-live) ainda não têm dono — o próximo agente livre reivindica na ordem em que aparecem.
+Itens de P3 que são só verificação de configuração (não código) ficam com quem chegar primeiro no painel do Supabase/Vercel — não é código, é clicar e confirmar.
 
 ## P0 — Bloqueadores de segurança e acesso
 
@@ -127,31 +128,31 @@ Itens de P2/P3 (auditoria, recuperação de senha, PDF, PWA, testes formais, go-
 
 ## P2 — Auditoria e operação
 
-- [ ] Reduzir o ruído da auditoria automática.
+- [~] (Claude) Reduzir o ruído da auditoria automática.
   - Evitar um log de `scale_assessments` para cada resposta que apenas recalcula total e quantidade de itens.
   - Diferenciar ação do usuário, importação e atualização técnica.
   - Definir retenção ou arquivamento para a auditoria, que já possui mais de 250 mil linhas.
   - Critério de aceite: uma avaliação gera um evento clínico útil, sem dezenas de atualizações técnicas.
 
-- [ ] Completar recuperação de senha.
-  - Adicionar “Esqueci minha senha” no login.
+- [~] (Claude) Completar recuperação de senha.
+  - Adicionar "Esqueci minha senha" no login.
   - Criar fluxo de envio, callback e definição de nova senha.
   - Critério de aceite: usuário convidado consegue recuperar acesso sem intervenção do administrador.
+  - Bloqueia liberar o sistema além do piloto controlado (hoje só eu consigo resetar senha via SQL).
 
-- [ ] Completar o PDF mensal.
+- [~] (Claude) Completar o PDF mensal.
   - Remover o limite dos primeiros 35 indicadores.
   - Incluir unidade, período, filtros, metas e paginação adequada.
   - Critério de aceite: nenhum indicador registrado no período desaparece silenciosamente do PDF.
 
-- [ ] Revisar PWA e instalação em dispositivos reais.
-  - Adicionar ícones compatíveis com Android/iOS nos tamanhos necessários.
-  - Validar instalação, atualização do service worker e comportamento offline seguro.
-  - Critério de aceite: Lighthouse PWA ≥ 90 e instalação aprovada em pelo menos um Android e um iPhone/iPad compatível.
+- [~] (Claude) Revisar PWA e instalação em dispositivos reais.
+  - Adicionar ícones compatíveis com Android/iOS nos tamanhos necessários (ícone institucional já existe em `public/icon.png`/`apple-icon.png`, falta gerar os tamanhos intermediários do manifest).
+  - Validar instalação, atualização do service worker e comportamento offline seguro; rodar Lighthouse.
+  - **Instalar de fato num Android e num iPhone físico só vocês conseguem fazer** — eu preparo os ícones/manifesto/Lighthouse e deixo um roteiro de 2 minutos pra vocês confirmarem no aparelho.
 
 ## P2 — Testes obrigatórios antes do go-live
 
-- [ ] Criar usuários de teste para todos os papéis.
-  - Um `super_admin`, admins de duas unidades, coordenadores de serviços diferentes e colaboradores.
+- [x] (Claude) Criar usuários de teste para todos os papéis — feito de forma ad-hoc em várias sessões (2 admins de unidades distintas, coordenador, colaborador, super_admin), sempre criados e removidos via `service_role` contra produção. **Atenção:** 2 contas ficaram esquecidas no banco entre 23/07 e 29/07 (`teste.integridade.*`, `teste.rls.galileu.*`) — removidas agora (29/07) junto com os 59 registros de auditoria que bloqueavam a exclusão (FK `audit_logs_changed_by_fkey` é `NO ACTION`, não `CASCADE`). Daqui pra frente, scripts de teste devem confirmar a limpeza no fim da sessão, não só no `finally` do próprio script.
 
 - [x] (Codex, `11e2887`) Criar testes de integração RLS em PostgreSQL isolado.
   - Anônimo não lê dados.
@@ -165,13 +166,13 @@ Itens de P2/P3 (auditoria, recuperação de senha, PDF, PWA, testes formais, go-
   - O teste revelou e corrigiu a leitura global restante de `units`,
     `service_sectors` e colaboradores ativos na migração `202607230012`.
 
-- [ ] Criar teste E2E do fluxo principal.
+- [~] (Claude) Criar teste E2E do fluxo principal.
   - Login → lançamento de Fisioterapia → Barthel entrada → Barthel saída → dashboard.
   - Executar em desktop e viewport mobile.
   - Conferir total e flag de melhora.
+  - Já validado manualmente contra produção (13/13, ver sessão de 26/07 — UTI Fisioterapia + as 3 escalas); falta automatizar num teste que rode sozinho (Playwright), não depender de mim rodar na mão de novo.
 
-- [ ] Testar cenários negativos.
-  - Data futura, setor de outra unidade, colaborador de outro serviço, respostas incompletas e paciente com nome completo.
+- [x] (Claude) Testar cenários negativos — já cobertos manualmente contra produção em sessões anteriores, com usuários reais descartáveis: data futura (rejeitada), setor de outra unidade (rejeitado), colaborador de outro serviço (rejeitado), respostas incompletas/MRC sem colaborador ou nº de atendimento (rejeitado), paciente com nome completo (rejeitado, 6/6 casos). Falta só formalizar em teste automatizado (pode entrar junto com o E2E acima).
 
 - [ ] Executar a suíte final.
   - `npm run lint`
@@ -181,18 +182,28 @@ Itens de P2/P3 (auditoria, recuperação de senha, PDF, PWA, testes formais, go-
   - Testes E2E e RLS
   - Lighthouse mobile
 
+## Ações pendentes com você (nenhum agente pode fazer sozinho)
+
+Consolidado em 29/07 — nada aqui é código, é conta/pagamento/decisão:
+
+- [ ] **E-mails do Daniel Abreu e do Cezar Ferraz** — bloqueia criar as contas do piloto (Coordenador, Fisioterapia, Galileu).
+- [ ] **Decisão do domínio** — `maisfisiohub.com.br`, `grupomaisfisio.com.br` ou `maisfisiosaude.com.br` (todas livres, ~R$ 40/ano). Depois disso: registrar + configurar DNS + Vercel + Supabase Auth (posso fazer a parte técnica assim que houver domínio).
+- [ ] **Backup gerenciado do Supabase (Pro/PITR)** — hoje só existe o export local; decisão de quando fazer o upgrade de pagamento.
+- [ ] **Upgrade Vercel Pro** — planejado pra "mês que vem" junto com o Supabase Pro (conversa de 26/07); hoje está no Hobby.
+- [ ] **Conta de SMTP institucional** (ex.: Resend) — necessária pro convite por e-mail e recuperação de senha funcionarem de verdade em produção; hoje o Supabase usa e-mail padrão com limite baixo.
+- [ ] **Distribuir o guia de segurança e treinar a equipe** — `docs/guia-seguranca-equipe.md` já existe, falta só enviar pro Daniel/Cezar quando as contas saírem.
+- [ ] **Decisão de ampliar o piloto** além de Daniel/Cezar — depende de fechar a recuperação de senha (Claude, em andamento acima).
+
 ## P3 — Go-live e acompanhamento
 
-- [ ] Configurar domínio de produção e URLs permitidas do Supabase Auth.
-- [ ] Confirmar cadastro público desabilitado e acesso somente por convite.
-- [ ] Configurar senha mínima, proteção contra senhas vazadas e SMTP institucional.
-- [ ] Configurar monitoramento do `/api/health` e alertas.
-- [ ] Confirmar backups/PITR conforme o plano contratado do Supabase — **o plano Free não tem backup gerenciado nenhum**; Pro ($25/mês) dá backup diário com 7 dias de retenção; PITR (recuperação a qualquer segundo) é add-on pago à parte. Isto é o investimento mais importante para "nunca perder dados" — decisão do usuário, aguardando confirmação do plano.
-  - Camada extra (já implementada, `26/07`): `npm run backup:db` (`scripts/backup-database.mjs`) exporta todas as 19 tabelas para JSON em `backups/<timestamp>/` — cópia local independente do Supabase. Não substitui backup gerenciado/PITR, é redundância adicional. Rodar periodicamente (ideal: agendar via Task Scheduler do Windows) e manter a pasta `backups/` fora do Git (dados de pacientes) e idealmente também copiada para um segundo local (nuvem pessoal, HD externo).
-- [ ] Distribuir o guia de segurança à equipe.
-- [ ] Treinar administradores, coordenadores e colaboradores.
-- [ ] Fazer liberação piloto em uma unidade/setor antes da expansão.
-- [ ] Acompanhar erros, desempenho e qualidade dos lançamentos na primeira semana.
+Itens de conta/pagamento/decisão foram movidos para "Ações pendentes com você", acima. Aqui ficam só os passos técnicos que dependem deles:
+
+- [ ] Configurar domínio de produção e URLs permitidas do Supabase Auth — depende da decisão do domínio; técnico, faço assim que houver escolha.
+- [ ] Confirmar cadastro público desabilitado e acesso somente por convite — checagem de 1 minuto no painel Supabase, qualquer um de nós faz.
+- [ ] Configurar senha mínima, proteção contra senhas vazadas e SMTP institucional — SMTP depende da conta (Resend) que está em "Ações pendentes"; o resto é config de painel.
+- [ ] Configurar monitoramento do `/api/health` e alertas — ex.: UptimeRobot, gratuito; posso deixar pronto quando quiserem.
+- [x] Backup local como redundância extra — `npm run backup:db` + Tarefa Agendada diária (feito `26/07`, ver `scripts/backup-database.mjs`). Backup **gerenciado**/PITR do Supabase continua em "Ações pendentes com você" (decisão de pagamento).
+- [ ] Acompanhar erros, desempenho e qualidade dos lançamentos na primeira semana do piloto — conjunto: eu monitoro os logs técnicos, vocês (Daniel/Cezar) reportam o que sentirem no dia a dia.
 
 ## Definição de pronto
 
