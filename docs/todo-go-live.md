@@ -65,19 +65,27 @@ Itens de P3 que são só verificação de configuração (não código) ficam co
   - A própria conta e contas `super_admin` não podem ser alteradas pela tela.
     Coordenador fica restrito a colaboradores do próprio serviço.
 
-- [~] (Codex) Tornar o convite administrativo consistente.
+- [x] (Codex, `f473770`) Tornar o convite administrativo consistente.
   - Evitar usuário órfão quando perfil, unidade ou colaborador falhar após o envio do convite.
   - Exibir mensagens amigáveis sem expor detalhes internos do Supabase.
   - Critério de aceite: falha parcial pode ser repetida ou recuperada sem intervenção manual no Auth.
+  - Perfil, unidade, colaborador e unidade de atuação agora são provisionados
+    por uma única função transacional; falha compensa o usuário recém-criado
+    no Auth, e convites pendentes podem ser retomados de forma idempotente.
 
 - [x] Corrigir metas por unidade — RLS e gravação de `unit_id` feitos em `cf165ce` (P0). Falta só:
-  - [~] (Codex) Exibir situação da meta (atingida/não atingida) nos KPIs e relatórios.
+  - [x] (Codex, `f473770`) Exibir situação da meta (atingida/não atingida) nos KPIs e relatórios.
   - Critério de aceite: dashboard mostra atingida/não atingida comparando o indicador com a meta vigente da unidade.
+  - Dashboard, relatório mensal e PDF usam a meta vigente no fim do período,
+    priorizando o setor e a unidade ativos sobre a meta global.
 
-- [~] (Codex) Ajustar o catálogo administrativo por papel.
+- [x] (Codex, `f473770`) Ajustar o catálogo administrativo por papel.
   - Mostrar ações de indicadores globais somente para `super_admin`.
   - Filtrar colaboradores, setores, metas e auditoria pela unidade ativa.
   - Critério de aceite: nenhuma ação visível termina em erro de permissão esperado.
+  - Gestores consultam indicadores globais sem ações de escrita; apenas a
+    matriz vê ativar/desativar. Dados operacionais e os 100 eventos de
+    auditoria são recortados pela unidade ativa.
 
 ## P1 — Integridade clínica e indicadores
 
@@ -100,11 +108,14 @@ Itens de P3 que são só verificação de configuração (não código) ficam co
   - Linhas brutas do gráfico/quebras/CSV/lista de escalas agora usam `lib/supabase/pagination.ts` (`fetchAllRows`, pagina via `.range()`) em vez de `.limit(10000/20000)`.
   - CSV e dashboard usam o mesmo array paginado — não podem divergir.
 
-- [~] (Codex) Completar os filtros e exportações do dashboard.
+- [x] (Codex, `f473770`) Completar os filtros e exportações do dashboard.
   - Adicionar turno e colaborador.
   - Incluir dimensões relevantes no CSV.
   - Adicionar exportação Excel, conforme o plano aprovado.
   - Critério de aceite: filtros combinados alteram KPIs, gráficos e exportação de forma consistente.
+  - Turno e colaborador entram na agregação SQL dos KPIs e no mesmo recorte
+    paginado de gráficos/exports; CSV e Excel incluem unidade, serviço, turno,
+    setor, tipo de setor, colaborador, contexto, indicador, tipo e valor.
 
 ## P1 — Importação histórica
 

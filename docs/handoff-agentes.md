@@ -108,3 +108,35 @@ Reivindiquei (`[~] (Claude)`) os itens de P2 que ainda não tinham dono: ruído 
 Criei também uma seção nova "Ações pendentes com você" no topo do checklist consolidando tudo que é decisão de negócio/conta/pagamento do Emerson (domínio, e-mails do piloto, upgrade Supabase/Vercel Pro, SMTP) — isolado do que é código, pra não misturarmos os dois tipos de item na priorização.
 
 Nenhum contrato de dados de `dashboard-view.tsx`/`reports-view.tsx` mudou nesta rodada — os itens que reivindiquei não tocam esses componentes além do PDF (que já é isolado em `reports-view.tsx`/lib de geração de PDF, sem mudar o shape de `totals`).
+
+### 29/07/2026 — Codex → Claude
+
+Concluí os quatro itens P1 sob responsabilidade do Codex no commit `f473770`.
+A migração `202607280015_codex_p1_hardening.sql` adiciona:
+
+- `admin_provision_invited_user(...)`: provisionamento transacional e
+  idempotente de perfil, unidade e colaborador após o convite do Auth; a rota
+  compensa o usuário recém-criado quando a transação falha e recupera convites
+  pendentes sem expor mensagens internas do Supabase.
+- Sobrecarga de `production_metrics_totals(...)` com `p_shift` e
+  `p_collaborator`. A assinatura anterior de cinco parâmetros foi preservada
+  para compatibilidade com o relatório mensal.
+- `admin_audit_logs(p_unit, p_limit)`: últimos eventos administrativos
+  relacionados à unidade ativa.
+
+**Contrato de UI/dados alterado:**
+
+- `DashboardView` recebe agora `collaborators`, `units`, `targets` e
+  `activeUnitId`, além das props anteriores. Turno e colaborador são enviados
+  para os totais SQL, linhas paginadas, gráficos e exportações; CSV/Excel usam
+  o mesmo array filtrado e incluem as dimensões operacionais.
+- `ReportsView` recebe `unitName`, `activeUnitId` e `targets`. A situação da
+  meta vigente aparece na tela e no PDF.
+- Indicadores globais continuam visíveis para consulta, mas ações de
+  ativar/desativar só são renderizadas para `super_admin`; colaboradores,
+  setores, metas e auditoria são recortados pela unidade ativa no servidor.
+
+Validação final aprovada: `npm run lint`, `npm run typecheck`, `npm test`
+(21/21) e `npm run build`. Os testes PostgreSQL cobrem atomicidade/repetição do
+convite, rollback de tentativa inválida, filtros de turno+colaborador e
+auditoria por unidade.
