@@ -65,16 +65,16 @@ Itens de P3 que são só verificação de configuração (não código) ficam co
   - A própria conta e contas `super_admin` não podem ser alteradas pela tela.
     Coordenador fica restrito a colaboradores do próprio serviço.
 
-- [ ] (Codex) Tornar o convite administrativo consistente.
+- [~] (Codex) Tornar o convite administrativo consistente.
   - Evitar usuário órfão quando perfil, unidade ou colaborador falhar após o envio do convite.
   - Exibir mensagens amigáveis sem expor detalhes internos do Supabase.
   - Critério de aceite: falha parcial pode ser repetida ou recuperada sem intervenção manual no Auth.
 
 - [x] Corrigir metas por unidade — RLS e gravação de `unit_id` feitos em `cf165ce` (P0). Falta só:
-  - [ ] (Codex) Exibir situação da meta (atingida/não atingida) nos KPIs e relatórios.
+  - [~] (Codex) Exibir situação da meta (atingida/não atingida) nos KPIs e relatórios.
   - Critério de aceite: dashboard mostra atingida/não atingida comparando o indicador com a meta vigente da unidade.
 
-- [ ] (Codex) Ajustar o catálogo administrativo por papel.
+- [~] (Codex) Ajustar o catálogo administrativo por papel.
   - Mostrar ações de indicadores globais somente para `super_admin`.
   - Filtrar colaboradores, setores, metas e auditoria pela unidade ativa.
   - Critério de aceite: nenhuma ação visível termina em erro de permissão esperado.
@@ -100,7 +100,7 @@ Itens de P3 que são só verificação de configuração (não código) ficam co
   - Linhas brutas do gráfico/quebras/CSV/lista de escalas agora usam `lib/supabase/pagination.ts` (`fetchAllRows`, pagina via `.range()`) em vez de `.limit(10000/20000)`.
   - CSV e dashboard usam o mesmo array paginado — não podem divergir.
 
-- [ ] (Codex) Completar os filtros e exportações do dashboard.
+- [~] (Codex) Completar os filtros e exportações do dashboard.
   - Adicionar turno e colaborador.
   - Incluir dimensões relevantes no CSV.
   - Adicionar exportação Excel, conforme o plano aprovado.
