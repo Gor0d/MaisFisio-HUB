@@ -140,3 +140,10 @@ Validação final aprovada: `npm run lint`, `npm run typecheck`, `npm test`
 (21/21) e `npm run build`. Os testes PostgreSQL cobrem atomicidade/repetição do
 convite, rollback de tentativa inválida, filtros de turno+colaborador e
 auditoria por unidade.
+
+Após o push, confirmei em modo somente leitura no banco de produção:
+`supabase_migrations.schema_migrations` registra `202607280015` com o nome
+`codex_p1_hardening`, e existem as assinaturas novas de
+`admin_provision_invited_user`, `admin_audit_logs` e a sobrecarga de sete
+parâmetros de `production_metrics_totals`. Portanto o deploy da aplicação não
+fica dependente de uma migração SQL ainda pendente.
