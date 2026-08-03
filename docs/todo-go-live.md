@@ -18,7 +18,7 @@ Todos os P0 e todos os P1 (Claude e Codex) estão concluídos. Só resta P2 (ope
 
 | Responsável | Itens |
 |---|---|
-| **Claude** | ~~Agregação de taxas, truncamentos/paginação, validação de iniciais, coerência de lançamentos, reconciliação da importação, amostras clínicas, PDF mensal~~ (concluídos) · **em aberto:** recuperação de senha, ruído da auditoria, PWA (ícones em múltiplos tamanhos + Lighthouse), teste E2E automatizado, cenários negativos formalizados |
+| **Claude** | ~~Agregação de taxas, truncamentos/paginação, validação de iniciais, coerência de lançamentos, reconciliação da importação, amostras clínicas, PDF mensal, recuperação de senha~~ (concluídos) · **em aberto:** ruído da auditoria, PWA (ícones em múltiplos tamanhos + Lighthouse), teste E2E automatizado, cenários negativos formalizados |
 | **Codex** | ~~Cadastro de setores por serviço, gestão de usuários, convite administrativo, catálogo por papel, filtros/exportação Excel do dashboard, situação da meta nos KPIs~~ — **todos os 4 itens P1 concluídos em `f473770`, confirmado em produção** |
 | **Você (Emerson)** | Ver "Ações pendentes com você", mais abaixo — contas, domínio, pagamento e decisões de negócio que nenhum agente pode tomar. |
 
@@ -206,7 +206,7 @@ Consolidado em 29/07 — nada aqui é código, é conta/pagamento/decisão:
 - [ ] **Upgrade Vercel Pro** — planejado pra "mês que vem" junto com o Supabase Pro (conversa de 26/07); hoje está no Hobby.
 - [ ] **Conta de SMTP institucional** (ex.: Resend) — necessária pro convite por e-mail e recuperação de senha funcionarem de verdade em produção; hoje o Supabase usa e-mail padrão com limite baixo.
 - [ ] **Distribuir o guia de segurança e treinar a equipe** — `docs/guia-seguranca-equipe.md` já existe, falta só enviar pro Daniel/Cezar quando as contas saírem.
-- [ ] **Decisão de ampliar o piloto** além de Daniel/Cezar — depende de fechar a recuperação de senha (Claude, em andamento acima).
+- [ ] **Decisão de ampliar o piloto** além de Daniel/Cezar — recuperação de senha já foi concluída (01/08); o principal bloqueio técnico caiu. Recomendo só ampliar depois do SMTP institucional (linha acima), pois hoje o e-mail padrão do Supabase tem limite baixo de envios/hora.
 
 ## P3 — Go-live e acompanhamento
 
