@@ -5,6 +5,10 @@ export const loginSchema = z.object({
   password: z.string().min(6, "A senha deve ter ao menos 6 caracteres."),
 });
 
+export const recoverPasswordSchema = z.object({
+  email: z.email("Informe um e-mail válido."),
+});
+
 export const productionSchema = z.object({
   unit_id: z.uuid("Selecione a unidade."),
   service_id: z.uuid(),

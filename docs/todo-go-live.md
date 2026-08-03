@@ -147,11 +147,12 @@ Itens de P3 que são só verificação de configuração (não código) ficam co
   - Definir retenção ou arquivamento para a auditoria, que já possui mais de 250 mil linhas.
   - Critério de aceite: uma avaliação gera um evento clínico útil, sem dezenas de atualizações técnicas.
 
-- [~] (Claude) Completar recuperação de senha.
-  - Adicionar "Esqueci minha senha" no login.
-  - Criar fluxo de envio, callback e definição de nova senha.
-  - Critério de aceite: usuário convidado consegue recuperar acesso sem intervenção do administrador.
-  - Bloqueia liberar o sistema além do piloto controlado (hoje só eu consigo resetar senha via SQL).
+- [x] (Claude) Completar recuperação de senha.
+  - Link "Esqueci minha senha" no login (`components/login-form.tsx`) leva a `/recuperar-senha` (rota pública nova, liberada em `lib/supabase/proxy.ts`).
+  - `requestPasswordReset` (`app/actions/auth.ts`) chama `supabase.auth.resetPasswordForEmail` com o mesmo `redirectTo` já usado e testado pelo convite (`/auth/callback?next=/definir-senha`) — reaproveita o callback e o `PasswordForm` existentes, sem rota nova de callback.
+  - Mensagem de sucesso é idêntica exista ou não o e-mail (sem enumeração de usuários); erro 429 do Supabase mostra aviso de limite de tentativas.
+  - Copy de `/definir-senha` neutralizada para servir tanto ativação de convite quanto redefinição.
+  - Validado: lint/typecheck/21 testes/build ok; rotas `/recuperar-senha` (200) e link no `/login` confirmados via `npm run dev` local. **Não enviei e-mail real de teste** (evitar disparar para uma caixa de verdade sem combinar) — o envio em si reusa a chamada já validada em produção pelo fluxo de convite, mas o clique no link de recuperação real ainda não foi testado ponta a ponta.
 
 - [x] (Claude, `0d322dc` + `f473770`) Completar o PDF mensal.
   - Limite dos 35 indicadores já havia sido removido em `0d322dc` (paginação real: `if (y > 275) doc.addPage()`, sem `.slice()`).

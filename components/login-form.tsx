@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { LoaderCircle, LogIn } from "lucide-react";
+import Link from "next/link";
 import { login, type AuthState } from "@/app/actions/auth";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,10 @@ export function LoginForm({ redirectTo, disabled }: { redirectTo?: string; disab
         <Input id="email" name="email" type="email" autoComplete="email" placeholder="voce@maisfisio.com.br" required disabled={disabled} />
       </div>
       <div className="field">
-        <Label htmlFor="password">Senha</Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="password">Senha</Label>
+          <Link href="/recuperar-senha" className="text-sm font-medium text-primary hover:underline">Esqueci minha senha</Link>
+        </div>
         <Input id="password" name="password" type="password" autoComplete="current-password" placeholder="••••••••" minLength={6} required disabled={disabled} />
       </div>
       {state.error && <Alert className="border-red-200 bg-red-50 text-red-800">{state.error}</Alert>}
