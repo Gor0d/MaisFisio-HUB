@@ -12,12 +12,14 @@ Convenção simples baseada em texto, sem ferramenta externa — os dois agentes
 4. **Prefira itens em arquivos diferentes** para minimizar conflito de merge — a tabela de responsáveis abaixo já foi dividida pensando nisso. Quando dois itens tocarem o mesmo arquivo (ex.: `dashboard-view.tsx`), faça commits pequenos e puxe antes de começar.
 5. **Nunca force push** neste repositório. Se der conflito, resolva localmente e faça um commit de merge normal.
 
-### Divisão vigente em 29/07 (pode mudar; a marca `[~]`/`[x]` no item é o que vale)
+### Divisão vigente em 01/08 (pode mudar; a marca `[~]`/`[x]` no item é o que vale)
+
+Todos os P0 e todos os P1 (Claude e Codex) estão concluídos. Só resta P2 (operacional, não bloqueia o piloto controlado) e as decisões de negócio.
 
 | Responsável | Itens |
 |---|---|
-| **Claude** | ~~Agregação de taxas, truncamentos/paginação, validação de iniciais, coerência de lançamentos no banco, reconciliação da importação, amostras clínicas~~ (concluídos) · **novo:** recuperação de senha, ruído da auditoria, PDF mensal, ícones/checklist técnico do PWA, teste E2E do fluxo principal, cenários negativos formalizados |
-| **Codex** | ~~Cadastro de setores por serviço, gestão de usuários~~ (concluídos) · **em aberto:** consistência do convite administrativo, catálogo administrativo por papel, filtros e exportação Excel do dashboard, situação da meta nos KPIs |
+| **Claude** | ~~Agregação de taxas, truncamentos/paginação, validação de iniciais, coerência de lançamentos, reconciliação da importação, amostras clínicas, PDF mensal~~ (concluídos) · **em aberto:** recuperação de senha, ruído da auditoria, PWA (ícones em múltiplos tamanhos + Lighthouse), teste E2E automatizado, cenários negativos formalizados |
+| **Codex** | ~~Cadastro de setores por serviço, gestão de usuários, convite administrativo, catálogo por papel, filtros/exportação Excel do dashboard, situação da meta nos KPIs~~ — **todos os 4 itens P1 concluídos em `f473770`, confirmado em produção** |
 | **Você (Emerson)** | Ver "Ações pendentes com você", mais abaixo — contas, domínio, pagamento e decisões de negócio que nenhum agente pode tomar. |
 
 Itens de P3 que são só verificação de configuração (não código) ficam com quem chegar primeiro no painel do Supabase/Vercel — não é código, é clicar e confirmar.
@@ -151,10 +153,10 @@ Itens de P3 que são só verificação de configuração (não código) ficam co
   - Critério de aceite: usuário convidado consegue recuperar acesso sem intervenção do administrador.
   - Bloqueia liberar o sistema além do piloto controlado (hoje só eu consigo resetar senha via SQL).
 
-- [~] (Claude) Completar o PDF mensal.
-  - Remover o limite dos primeiros 35 indicadores.
-  - Incluir unidade, período, filtros, metas e paginação adequada.
-  - Critério de aceite: nenhum indicador registrado no período desaparece silenciosamente do PDF.
+- [x] (Claude, `0d322dc` + `f473770`) Completar o PDF mensal.
+  - Limite dos 35 indicadores já havia sido removido em `0d322dc` (paginação real: `if (y > 275) doc.addPage()`, sem `.slice()`).
+  - Unidade e período no cabeçalho; meta vigente (atingida/não atingida) por indicador entrou via `f473770` (Codex, item da meta nos KPIs), reaproveitada aqui.
+  - Confirmado em revisão de 01/08: `components/reports-view.tsx` não tem mais limite de linhas, e os três critérios (unidade, período, metas, paginação) estão cobertos. Não tinha sido percebido como concluído porque ficou marcado `[~]` desde a redivisão de 29/07 — o trabalho de base já existia antes disso.
 
 - [~] (Claude) Revisar PWA e instalação em dispositivos reais.
   - Adicionar ícones compatíveis com Android/iOS nos tamanhos necessários (ícone institucional já existe em `public/icon.png`/`apple-icon.png`, falta gerar os tamanhos intermediários do manifest).
