@@ -1,5 +1,16 @@
 import { z } from "zod";
 
+// "Tipo de setor" é opcional nos dois formulários (Select nativo, opção em
+// branco = "Não se aplica"/"Não informado"), mas um <select> sem seleção
+// manda "" — e z.enum([...]).optional() só aceita undefined, nunca "". Sem
+// isso, deixar esse campo no padrão bloqueava o envio inteiro com um erro
+// genérico ("Revise os campos obrigatórios"), sem apontar qual campo era.
+// "" entra como valor válido do próprio enum (em vez de z.preprocess, que
+// tipa a entrada como unknown e quebra a inferência usada por useForm<Values>
+// em production-form.tsx/scale-form.tsx); o servidor já trata "" como nulo
+// via nullif(...) em save_production_record/save_scale_assessment.
+const optionalSectorType = z.enum(["", "Médica", "Ortopédica", "Cirúrgica"]).optional();
+
 export const loginSchema = z.object({
   email: z.email("Informe um e-mail válido."),
   password: z.string().min(6, "A senha deve ter ao menos 6 caracteres."),
@@ -15,7 +26,7 @@ export const productionSchema = z.object({
   record_date: z.iso.date(),
   shift: z.enum(["MANHÃ", "TARDE", "NOITE"]),
   sector_id: z.uuid("Selecione o setor."),
-  sector_type: z.enum(["Médica", "Ortopédica", "Cirúrgica"]).optional(),
+  sector_type: optionalSectorType,
   collaborator_id: z.uuid("Selecione o colaborador."),
   context: z.enum(["geral", "uti", "enfermaria", "ambulatorio"]),
   notes: z.string().max(2000).optional(),
@@ -38,7 +49,7 @@ export const scaleAssessmentSchema = z.object({
   assessment_date: z.iso.date(),
   moment: z.enum(["entrada", "saida"]),
   sector_id: z.uuid(),
-  sector_type: z.enum(["Médica", "Ortopédica", "Cirúrgica"]).optional(),
+  sector_type: optionalSectorType,
   attendance_number: z.string().max(50).optional(),
   cid: z.string().max(120).optional(),
   event_date: z.iso.date().optional(),

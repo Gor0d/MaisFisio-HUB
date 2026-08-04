@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --configLoader runner",
     "test:watch": "vitest --configLoader runner",
+    "test:e2e": "playwright test",
     "import:xlsx": "tsx scripts/import-xlsx.ts",
     "import:xlsx:dry": "tsx scripts/import-xlsx.ts --dry-run",
     "backup:db": "node scripts/backup-database.mjs"
@@ -36,6 +37,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.1.12",
     "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.3.0",

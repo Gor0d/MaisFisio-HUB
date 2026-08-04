@@ -183,11 +183,11 @@ Itens de P3 que são só verificação de configuração (não código) ficam co
   - O teste revelou e corrigiu a leitura global restante de `units`,
     `service_sectors` e colaboradores ativos na migração `202607230012`.
 
-- [~] (Claude) Criar teste E2E do fluxo principal.
-  - Login → lançamento de Fisioterapia → Barthel entrada → Barthel saída → dashboard.
-  - Executar em desktop e viewport mobile.
-  - Conferir total e flag de melhora.
-  - Já validado manualmente contra produção (13/13, ver sessão de 26/07 — UTI Fisioterapia + as 3 escalas); falta automatizar num teste que rode sozinho (Playwright), não depender de mim rodar na mão de novo.
+- [x] (Claude) Criar teste E2E do fluxo principal.
+  - `playwright.config.ts` + `e2e/` (novo): login → lançamento de Fisioterapia (UTI Galileu) → Barthel entrada (pontuação mínima) → Barthel saída (pontuação máxima) → dashboard. Roda em Desktop Chrome e viewport mobile (Pixel 5), `npm run test:e2e`.
+  - Não há ambiente de teste separado neste projeto — roda contra o Supabase de produção com um usuário/colaborador/paciente **descartáveis**, criados no `global-setup` e removidos no `global-teardown` (mesma ordem de exclusão documentada no item de usuários de teste abaixo, por causa da FK `audit_logs_changed_by_fkey`). Confirmado sem sobra após rodar (0 usuários/pacientes/colaboradores `e2e.*` remanescentes).
+  - Conferência final não usa só a UI: consulta direto `production_values`/`scale_assessments` via `service_role` para confirmar o valor do indicador e o total/melhora da escala (a view `scale_assessment_results` depende de `is_member_of()`/`auth.uid()`, que fica vazio para `service_role` — por isso a leitura é na tabela base, não na view).
+  - **Achado real durante a construção do teste, corrigido**: `sector_type` (campo "Tipo de setor", opcional, presente em `lancamento` e nas 3 escalas) usava `z.enum([...]).optional()` no client, que só aceita `undefined` — mas o `<select>` nativo manda `""` quando a opção "Não se aplica"/"Não informado" fica selecionada (seu próprio padrão). Isso bloqueava o envio do formulário inteiro com um erro genérico ("Revise os campos obrigatórios..."), sem apontar o campo culpado, sempre que alguém deixasse "Tipo de setor" no padrão — o caso mais comum na UTI, que não tem essa classificação. O servidor já tratava `""` como nulo (`nullif`), só o client estava mais restrito que o banco. Corrigido em `lib/validation.ts` (`optionalSectorType`). Um teste E2E mecânico (que não "adivinha" preencher campos como um humano faria) achou isso onde validação manual não achou.
 
 - [x] (Claude) Testar cenários negativos — já cobertos manualmente contra produção em sessões anteriores, com usuários reais descartáveis: data futura (rejeitada), setor de outra unidade (rejeitado), colaborador de outro serviço (rejeitado), respostas incompletas/MRC sem colaborador ou nº de atendimento (rejeitado), paciente com nome completo (rejeitado, 6/6 casos). Falta só formalizar em teste automatizado (pode entrar junto com o E2E acima).
 
