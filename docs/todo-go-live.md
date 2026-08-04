@@ -12,13 +12,13 @@ Convenção simples baseada em texto, sem ferramenta externa — os dois agentes
 4. **Prefira itens em arquivos diferentes** para minimizar conflito de merge — a tabela de responsáveis abaixo já foi dividida pensando nisso. Quando dois itens tocarem o mesmo arquivo (ex.: `dashboard-view.tsx`), faça commits pequenos e puxe antes de começar.
 5. **Nunca force push** neste repositório. Se der conflito, resolva localmente e faça um commit de merge normal.
 
-### Divisão vigente em 01/08 (pode mudar; a marca `[~]`/`[x]` no item é o que vale)
+### Divisão vigente em 03/08 (pode mudar; a marca `[~]`/`[x]` no item é o que vale)
 
-Todos os P0 e todos os P1 (Claude e Codex) estão concluídos. Só resta P2 (operacional, não bloqueia o piloto controlado) e as decisões de negócio.
+Todos os P0, todos os P1 (Claude e Codex) e todos os P2 do Claude estão concluídos. Só resta os 4 itens P1 do Codex, os itens de configuração de P3 e as decisões de negócio.
 
 | Responsável | Itens |
 |---|---|
-| **Claude** | ~~Agregação de taxas, truncamentos/paginação, validação de iniciais, coerência de lançamentos, reconciliação da importação, amostras clínicas, PDF mensal, recuperação de senha~~ (concluídos) · **em aberto:** ruído da auditoria, PWA (ícones em múltiplos tamanhos + Lighthouse), teste E2E automatizado, cenários negativos formalizados |
+| **Claude** | ~~Agregação de taxas, truncamentos/paginação, validação de iniciais, coerência de lançamentos, reconciliação da importação, amostras clínicas, PDF mensal, recuperação de senha, ruído da auditoria, PWA, teste E2E, cenários negativos~~ — **todos concluídos e em produção (03/08)** |
 | **Codex** | ~~Cadastro de setores por serviço, gestão de usuários, convite administrativo, catálogo por papel, filtros/exportação Excel do dashboard, situação da meta nos KPIs~~ — **todos os 4 itens P1 concluídos em `f473770`, confirmado em produção** |
 | **Você (Emerson)** | Ver "Ações pendentes com você", mais abaixo — contas, domínio, pagamento e decisões de negócio que nenhum agente pode tomar. |
 
@@ -190,7 +190,7 @@ Itens de P3 que são só verificação de configuração (não código) ficam co
   - **Achado real durante a construção do teste, corrigido**: `sector_type` (campo "Tipo de setor", opcional, presente em `lancamento` e nas 3 escalas) usava `z.enum([...]).optional()` no client, que só aceita `undefined` — mas o `<select>` nativo manda `""` quando a opção "Não se aplica"/"Não informado" fica selecionada (seu próprio padrão). Isso bloqueava o envio do formulário inteiro com um erro genérico ("Revise os campos obrigatórios..."), sem apontar o campo culpado, sempre que alguém deixasse "Tipo de setor" no padrão — o caso mais comum na UTI, que não tem essa classificação. O servidor já tratava `""` como nulo (`nullif`), só o client estava mais restrito que o banco. Corrigido em `lib/validation.ts` (`optionalSectorType`). Um teste E2E mecânico (que não "adivinha" preencher campos como um humano faria) achou isso onde validação manual não achou.
 
 - [x] (Claude, `338b122`) Testar cenários negativos — formalizado em `tests/rls.integration.test.ts` (`describe("cenários negativos")`, 7 testes): data futura, setor de outra unidade, colaborador de outro serviço, MRC sem colaborador/atendimento, paciente com nome completo — todos rejeitados como esperado, e um teste extra confirma que os mesmos payloads corrigidos são aceitos (garante que a rejeição é da regra certa, não de outro erro qualquer).
-  - **Achado real**: "data futura rejeitada" só existia como restrição do datepicker no cliente — chamando a RPC direto não havia bloqueio nenhum do banco. Migração `202608030017` adiciona `check (record_date <= current_date)`/`check (assessment_date <= current_date)` em `production_records`/`scale_assessments`. Aplicação em produção pendente (SQL Editor do Supabase, mesma limitação de sessão dos outros itens de DDL).
+  - **Achado real**: "data futura rejeitada" só existia como restrição do datepicker no cliente — chamando a RPC direto não havia bloqueio nenhum do banco. Migração `202608030017` adiciona `check (record_date <= current_date)`/`check (assessment_date <= current_date)` em `production_records`/`scale_assessments`. Aplicada e confirmada em produção (03/08).
 
 - [ ] Executar a suíte final.
   - `npm run lint`
