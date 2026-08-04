@@ -160,9 +160,12 @@ Itens de P3 que são só verificação de configuração (não código) ficam co
   - Confirmado em revisão de 01/08: `components/reports-view.tsx` não tem mais limite de linhas, e os três critérios (unidade, período, metas, paginação) estão cobertos. Não tinha sido percebido como concluído porque ficou marcado `[~]` desde a redivisão de 29/07 — o trabalho de base já existia antes disso.
 
 - [~] (Claude) Revisar PWA e instalação em dispositivos reais.
-  - Adicionar ícones compatíveis com Android/iOS nos tamanhos necessários (ícone institucional já existe em `public/icon.png`/`apple-icon.png`, falta gerar os tamanhos intermediários do manifest).
-  - Validar instalação, atualização do service worker e comportamento offline seguro; rodar Lighthouse.
-  - **Instalar de fato num Android e num iPhone físico só vocês conseguem fazer** — eu preparo os ícones/manifesto/Lighthouse e deixo um roteiro de 2 minutos pra vocês confirmarem no aparelho.
+  - Gerado `public/icon-192.png` (192×192, a partir do ícone institucional 512×512); `manifest.webmanifest` agora expõe 192 e 512, cada um com `purpose: any` e `maskable`. `apple-icon.png` (180×180) já existia e está correto para iOS.
+  - **Bug real encontrado e corrigido**: `public/sw.js` ainda listava `/icon.svg` no `APP_SHELL` — arquivo removido desde o rebranding (commit `0084142`, 26/07). `cache.addAll()` falha inteiro se qualquer URL 404, então a instalação do service worker vinha quebrando silenciosamente para qualquer visitante desde então. Corrigido para os arquivos reais (`icon.png`, `icon-192.png`, `apple-icon.png`, `manifest.webmanifest`) e a versão do cache subiu para `v3` para forçar a limpeza do cache antigo quebrado nos navegadores que já tinham instalado.
+  - Confirmado manualmente (build de produção local): as 5 URLs do `APP_SHELL` respondem 200; `manifest.webmanifest` válido com os campos exigidos (name, icons 192/512, start_url, display standalone).
+  - Lighthouse: a categoria "PWA" foi **descontinuada pelo Google** nas versões recentes (rodei `npx lighthouse` v13 — `installable-manifest`/`service-worker`/`maskable-icon` não existem mais como audits). Rodei o que ainda existe contra `/login`: performance 99, acessibilidade 100, boas práticas 100.
+  - **Ainda falta**: o service worker só registra depois do login (`components/service-worker-register.tsx` está no layout protegido) — visitante não autenticado em `/login` não tem SW ativo. Isso é aceitável para este uso (equipe sempre loga antes de instalar), mas documentando a decisão para não ser confundida com bug depois.
+  - **Instalar de fato num Android e num iPhone físico só vocês conseguem fazer** — com o bug do `icon.svg` corrigido, a instalação deve funcionar agora; falta o teste real no aparelho.
 
 ## P2 — Testes obrigatórios antes do go-live
 

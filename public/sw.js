@@ -1,9 +1,9 @@
-const CACHE = "maisfisio-v2";
-const APP_SHELL = ["/login", "/icon.svg", "/manifest.webmanifest"];
+const CACHE = "maisfisio-v3";
+const APP_SHELL = ["/login", "/icon.png", "/icon-192.png", "/apple-icon.png", "/manifest.webmanifest"];
 // Apenas recursos estáticos podem ser cacheados. Páginas autenticadas carregam
 // dados clínicos e nunca devem permanecer no cache do dispositivo (LGPD,
 // computadores compartilhados nos hospitais).
-const STATIC = /^\/(_next\/static\/|icon\.svg$|manifest\.webmanifest$)/;
+const STATIC = /^\/(_next\/static\/|icon\.png$|icon-192\.png$|apple-icon\.png$|manifest\.webmanifest$)/;
 
 self.addEventListener("install", (event) => event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(APP_SHELL))));
 self.addEventListener("activate", (event) => event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))))));
