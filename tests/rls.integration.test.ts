@@ -486,4 +486,69 @@ describe("RLS executada em PostgreSQL", () => {
     expect(recordIds).toContain("auditoria-galileu");
     expect(recordIds).not.toContain("auditoria-terezinha");
   });
+
+  it("responder uma escala gera só um evento de auditoria, não um por item", async () => {
+    const itemAId = "80000000-0000-4000-8000-000000000001";
+    const itemBId = "80000000-0000-4000-8000-000000000002";
+    const optionAId = "80000000-0000-4000-8000-000000000011";
+    const optionBId = "80000000-0000-4000-8000-000000000012";
+
+    await queryAs(
+      db,
+      "service_role",
+      null,
+      `insert into public.scale_items (id, scale_type, code, name, display_order, max_points) values
+        ($1, 'melhoria_uti', 'rls_item_a', 'RLS Item A', 1, 10),
+        ($2, 'melhoria_uti', 'rls_item_b', 'RLS Item B', 2, 5)`,
+      [itemAId, itemBId],
+    );
+    await queryAs(
+      db,
+      "service_role",
+      null,
+      `insert into public.scale_item_options (id, item_id, label, points, display_order) values
+        ($1, $3, 'RLS Opção A', 10, 1),
+        ($2, $4, 'RLS Opção B', 5, 1)`,
+      [optionAId, optionBId, itemAId, itemBId],
+    );
+
+    const saved = await queryAs<{ id: string }>(
+      db,
+      "authenticated",
+      ids.users.adminGalileu,
+      `select public.save_scale_assessment(jsonb_build_object(
+        'unit_id', $1::text,
+        'scale_type', 'melhoria_uti',
+        'initials', 'MAS',
+        'record_number', 'RLS-AUDIT-001',
+        'assessment_date', '2026-07-10',
+        'moment', 'entrada',
+        'sector_id', $2::text,
+        'answers', jsonb_build_array(
+          jsonb_build_object('item_id', $3::text, 'option_id', $4::text),
+          jsonb_build_object('item_id', $5::text, 'option_id', $6::text)
+        )
+      )) as id`,
+      [ids.units.galileu, ids.sectors.galileu, itemAId, optionAId, itemBId, optionBId],
+    );
+    const assessmentId = saved.rows[0].id;
+
+    const totals = await queryAs<{ total: number; complete: boolean }>(
+      db,
+      "service_role",
+      null,
+      "select total, complete from public.scale_assessments where id = $1",
+      [assessmentId],
+    );
+    expect(totals.rows).toEqual([{ total: 15, complete: true }]);
+
+    const audit = await queryAs<{ action: string }>(
+      db,
+      "service_role",
+      null,
+      "select action from public.audit_logs where table_name = 'scale_assessments' and record_id = $1",
+      [assessmentId],
+    );
+    expect(audit.rows).toEqual([{ action: "INSERT" }]);
+  });
 });
