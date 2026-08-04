@@ -141,11 +141,11 @@ Itens de P3 que são só verificação de configuração (não código) ficam co
 
 ## P2 — Auditoria e operação
 
-- [~] (Claude) Reduzir o ruído da auditoria automática.
-  - Evitar um log de `scale_assessments` para cada resposta que apenas recalcula total e quantidade de itens.
-  - Diferenciar ação do usuário, importação e atualização técnica.
-  - Definir retenção ou arquivamento para a auditoria, que já possui mais de 250 mil linhas.
-  - Critério de aceite: uma avaliação gera um evento clínico útil, sem dezenas de atualizações técnicas.
+- [x] (Claude, `9b25224` + migração `202608030016` aplicada em produção 03/08) Reduzir o ruído da auditoria automática.
+  - `write_audit_log()` agora ignora UPDATEs em `scale_assessments` quando só as colunas derivadas (`total`/`answered_items`/`expected_items`/`complete`/`updated_at`) mudaram — elimina as 10-12 linhas técnicas por avaliação, mantendo qualquer edição real auditada.
+  - Diferenciação ação do usuário × importação já existe sem coluna nova: `changed_by is null` identifica escrita via `service_role` (script de importação); documentado via `comment on column`.
+  - Retenção: `purge_old_audit_logs(12)` agendado via `pg_cron` (todo domingo 3h30), descarta auditoria com mais de 12 meses.
+  - Teste novo em `tests/rls.integration.test.ts` prova: avaliação de 2 itens gera 1 linha de auditoria, não 3. Confirmado em produção: função, job `purge-audit-logs` (ativo, `30 3 * * 0`) e extensão `pg_cron` instalados.
 
 - [x] (Claude) Completar recuperação de senha.
   - Link "Esqueci minha senha" no login (`components/login-form.tsx`) leva a `/recuperar-senha` (rota pública nova, liberada em `lib/supabase/proxy.ts`).
