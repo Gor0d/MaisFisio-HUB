@@ -551,4 +551,97 @@ describe("RLS executada em PostgreSQL", () => {
     );
     expect(audit.rows).toEqual([{ action: "INSERT" }]);
   });
+
+  // Cenários já validados manualmente contra produção em sessões anteriores
+  // (com usuários reais descartáveis, ver docs/todo-go-live.md) — formalizados
+  // aqui para rodar sozinhos, sem depender de repetir o teste manual.
+  describe("cenários negativos", () => {
+    const negativeIndicatorId = "90000000-0000-4000-8000-000000000001";
+
+    beforeAll(async () => {
+      await queryAs(
+        db,
+        "service_role",
+        null,
+        `insert into public.indicators (id, service_id, code, name, context, kind) values ($1, $2, 'rls_neg_indicador', 'RLS Indicador Negativo', 'geral', 'contagem')`,
+        [negativeIndicatorId, ids.services.physio],
+      );
+    });
+
+    const saveProduction = (overrides: Record<string, unknown> = {}) => queryAs(
+      db,
+      "authenticated",
+      ids.users.adminGalileu,
+      "select public.save_production_record($1::jsonb)",
+      [JSON.stringify({
+        unit_id: ids.units.galileu,
+        service_id: ids.services.physio,
+        record_date: "2026-07-10",
+        shift: "MANHÃ",
+        sector_id: ids.sectors.galileu,
+        collaborator_id: ids.collaborators.galileu,
+        context: "geral",
+        values: [],
+        ...overrides,
+      })],
+    );
+
+    const saveScale = (overrides: Record<string, unknown> = {}) => queryAs(
+      db,
+      "authenticated",
+      ids.users.adminGalileu,
+      "select public.save_scale_assessment($1::jsonb)",
+      [JSON.stringify({
+        unit_id: ids.units.galileu,
+        scale_type: "barthel",
+        initials: "MAS",
+        record_number: `NEG-${Math.random().toString(36).slice(2)}`,
+        assessment_date: "2026-07-10",
+        moment: "entrada",
+        sector_id: ids.sectors.galileu,
+        answers: [],
+        ...overrides,
+      })],
+    );
+
+    it("rejeita data futura em produção e em avaliação de escala", async () => {
+      await expect(saveProduction({ record_date: "2999-01-01" }))
+        .rejects.toThrow(/no_future_date|check constraint/i);
+      await expect(saveScale({ assessment_date: "2999-01-01" }))
+        .rejects.toThrow(/no_future_date|check constraint/i);
+    });
+
+    it("rejeita setor de outra unidade em produção e em avaliação de escala", async () => {
+      // sectors.terezinha existe, mas o payload informa unit_id = galileu.
+      await expect(saveProduction({ sector_id: ids.sectors.terezinha }))
+        .rejects.toThrow(/não pertence à unidade/i);
+      await expect(saveScale({ sector_id: ids.sectors.terezinha }))
+        .rejects.toThrow(/não pertence à unidade/i);
+    });
+
+    it("rejeita colaborador de outro serviço em produção", async () => {
+      // collaborators.coordinatorSpeech é do serviço de Fonoaudiologia, não de Fisioterapia.
+      await expect(saveProduction({ collaborator_id: ids.collaborators.coordinatorSpeech }))
+        .rejects.toThrow(/não pertence ao serviço/i);
+    });
+
+    it("rejeita MRC sem colaborador ou número de atendimento", async () => {
+      await expect(saveScale({ scale_type: "mrc", collaborator_id: null, attendance_number: "" }))
+        .rejects.toThrow(/colaborador responsável/i);
+      await expect(saveScale({ scale_type: "mrc", collaborator_id: ids.collaborators.galileu, attendance_number: "" }))
+        .rejects.toThrow(/número do atendimento/i);
+    });
+
+    it("rejeita paciente identificado com nome completo em vez de iniciais", async () => {
+      await expect(saveScale({ initials: "MARIA APARECIDA SILVA" }))
+        .rejects.toThrow(/somente as iniciais/i);
+    });
+
+    it("aceita os mesmos payloads quando corrigidos (confirma que a rejeição é da regra, não de outro erro)", async () => {
+      const production = await saveProduction();
+      expect(production.rows).toHaveLength(1);
+      const scale = await saveScale();
+      expect(scale.rows).toHaveLength(1);
+    });
+  });
 });
