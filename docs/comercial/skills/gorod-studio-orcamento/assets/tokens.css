@@ -1,0 +1,11 @@
+/* Gorod Studio — brand tokens (v1.0, 2026). Identidade 08 "Slash". */
+:root {
+  --gorod-lima: #B8FF67;      /* principal / CTA / destaque */
+  --gorod-verde: #79A84A;     /* contraponto */
+  --gorod-base: #0B0F0B;      /* fundo principal */
+  --gorod-superficie: #131B15;/* cards e áreas */
+  --gorod-marfim: #F5F7F2;    /* tipografia sobre escuro / fundo claro */
+  --gorod-texto-suave: #AEB8AE;  /* texto secundário sobre escuro (contraste ~9:1 na base) */
+  --gorod-linha: #26302A;     /* filetes e bordas sobre escuro */
+  --gorod-font: 'Inter', Arial, sans-serif; /* títulos 700, texto 400 */
+}

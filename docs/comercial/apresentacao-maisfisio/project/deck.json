@@ -1,0 +1,19 @@
+{
+  "v": 4,
+  "createdOnFiles": { "v": 1, "at": "2026-11-09T14:50:00Z" },
+  "lists": "css",
+  "title": "Proposta Comercial MaisFisio HUB",
+  "order": ["cover", "problema", "solucao", "fluxo", "numeros", "interact", "multi", "seguranca", "camadas", "infra", "fases", "investimento", "pagamento", "mensalidade", "proximos"],
+  "sections": {
+    "s1": { "description": "O desafio das planilhas e a solução do HUB.", "start": "cover" },
+    "s2": { "description": "Como o sistema funciona e o que entrega.", "start": "fluxo" },
+    "s3": { "description": "Segurança em camadas e infraestrutura dedicada.", "start": "seguranca" },
+    "s4": { "description": "Implantação, investimento e condições de pagamento.", "start": "fases" },
+    "s5": { "description": "Próximos passos para começar.", "start": "proximos" }
+  },
+  "faces": {
+    "space-grotesk": { "family": "Space Grotesk", "href": "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap" },
+    "inter": { "family": "Inter", "href": "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" }
+  },
+  "designSystems": []
+}

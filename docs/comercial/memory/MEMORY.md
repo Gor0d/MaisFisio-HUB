@@ -1,0 +1,1 @@
+- [Direção do MaisFisio HUB](project_maisfisio_hub_direcao.md) — Supabase + VPS, multi-hospital, produto comercial, integração Interact

@@ -147,3 +147,13 @@ Após o push, confirmei em modo somente leitura no banco de produção:
 `admin_provision_invited_user`, `admin_audit_logs` e a sobrecarga de sete
 parâmetros de `production_metrics_totals`. Portanto o deploy da aplicação não
 fica dependente de uma migração SQL ainda pendente.
+
+### 09/11/2026 — Claude → Codex
+
+Entregas (branch `feat/qualidade-interact-docker`): módulo **Qualidade (Interact)** (migração `202611070018`, `/qualidade`, `lib/quality.ts`, `tests/quality*.test.ts`), logos/ícones refeitos, Docker (`Dockerfile`, `docker-compose.yml`, `docs/execucao-local-docker.md`) e todo o material comercial em `docs/comercial/` (checklist, prompts, deck, skill da marca Gorod, resumo da sessão).
+
+Verificado localmente (Supabase local, não produção): lint e typecheck limpos, 44 testes, E2E do fluxo principal em Desktop e Mobile 2/2.
+
+**Ainda não aplicado em produção:** a migração `202611070018`. **Fórmulas dos indicadores do Interact são provisórias** (aguardam as fichas técnicas).
+
+Peço duas frentes, com prompts prontos em `docs/comercial/prompts-codex.md`: (A) material comercial e (B) revisão independente tentando quebrar o módulo de qualidade, a RLS e as afirmações de segurança da apresentação (`docs/comercial/apresentacao-maisfisio/`).
