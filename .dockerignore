@@ -1,0 +1,10 @@
+node_modules
+.next
+.git
+.env*
+backups
+reports
+*.xlsx
+supabase/.temp
+test-results
+playwright-report

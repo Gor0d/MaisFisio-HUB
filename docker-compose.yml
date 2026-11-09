@@ -1,0 +1,22 @@
+# App MaisFisio HUB apontando para o Supabase LOCAL (npx supabase start).
+# O navegador e o contêiner acessam o Supabase via host.docker.internal:54321.
+# As chaves NÃO ficam no arquivo: copie .env.docker.example para .env e preencha
+# com os valores de `npx supabase status` (o .env é ignorado pelo git).
+services:
+  web:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL_PUBLIC:-http://host.docker.internal:54321}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?defina SUPABASE_ANON_KEY no .env}
+        NEXT_PUBLIC_APP_URL: ${APP_URL:-http://localhost:3010}
+    environment:
+      NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL_PUBLIC:-http://host.docker.internal:54321}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?defina SUPABASE_ANON_KEY no .env}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:?defina SUPABASE_SERVICE_ROLE_KEY no .env}
+      NEXT_PUBLIC_APP_URL: ${APP_URL:-http://localhost:3010}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "3010:3000"
+    restart: unless-stopped

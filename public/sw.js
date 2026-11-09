@@ -1,4 +1,4 @@
-const CACHE = "maisfisio-v3";
+const CACHE = "maisfisio-v4";
 const APP_SHELL = ["/login", "/icon.png", "/icon-192.png", "/apple-icon.png", "/manifest.webmanifest"];
 // Apenas recursos estáticos podem ser cacheados. Páginas autenticadas carregam
 // dados clínicos e nunca devem permanecer no cache do dispositivo (LGPD,

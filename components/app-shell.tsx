@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, BarChart3, Building2, ClipboardPlus, FileBarChart, LogOut, Menu, Settings, X } from "lucide-react";
+import { Activity, BarChart3, Building2, ClipboardPlus, FileBarChart, LogOut, Menu, Settings, ShieldCheck, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { logout, setActiveUnit } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,12 @@ export function AppShell({ profile, units, activeUnitId, children }: { profile: 
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const unitFormRef = useRef<HTMLFormElement>(null);
-  const nav = profile.role === "colaborador" ? mainNav : [...mainNav, { href: "/admin", label: "Administração", icon: Settings }];
+  const canSeeQuality = profile.role === "super_admin" || profile.role === "admin";
+  const nav = profile.role === "colaborador" ? mainNav : [
+    ...mainNav,
+    ...(canSeeQuality ? [{ href: "/qualidade", label: "Qualidade (Interact)", icon: ShieldCheck }] : []),
+    { href: "/admin", label: "Administração", icon: Settings },
+  ];
 
   const UnitSwitcher = () => units.length === 0 ? null : (
     <form ref={unitFormRef} action={setActiveUnit} className="border-b px-4 py-3">
