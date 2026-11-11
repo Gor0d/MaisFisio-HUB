@@ -40,3 +40,7 @@ Thumbs.db
 /playwright-report/
 /blob-report/
 /e2e/.state.json
+
+# backups e segredos de produção
+deploy/backups/
+deploy/.env

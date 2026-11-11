@@ -1,6 +1,6 @@
 <section id="infra" data-transition="fade" style="background:#F5F7FA;color:#14233A;font-family:'Inter', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:36px">
 <p style="font-size:24px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#2B5080">Infraestrutura</p>
-<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:64px;font-weight:600;line-height:1.1;color:#14233A">VPS dedicada, domínio próprio e banco gerenciado</h2>
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:64px;font-weight:600;line-height:1.1;color:#14233A">Tudo em uma VPS dedicada, com domínio próprio</h2>
 <div style="display:flex;gap:48px;align-items:center">
 <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:14px">
 <div style="width:100%;background:#FDFEFF;border:1px solid #DCE3EC;border-radius:16px;padding:24px 28px">
@@ -14,8 +14,8 @@
 </div>
 <x-shape kind="arrow-down" style="background:#2B5080;width:28px;height:36px"></x-shape>
 <div style="width:100%;background:#FDFEFF;border:1px solid #DCE3EC;border-radius:16px;padding:24px 28px">
-<p style="font-size:30px;font-weight:600">Banco gerenciado (Supabase)</p>
-<p style="font-size:24px;color:#5B6B82">PostgreSQL, autenticação, backups e PITR</p>
+<p style="font-size:30px;font-weight:600">Banco PostgreSQL na mesma VPS</p>
+<p style="font-size:24px;color:#5B6B82">Autenticação, regras de acesso e backup contínuo em storage externo</p>
 </div>
 </div>
 <div style="flex:1;display:flex;flex-direction:column;gap:24px">
@@ -33,5 +33,5 @@
 <p style="position:absolute;left:176px;bottom:64px;width:900px;font-size:24px;color:#5B6B82">MaisFisio HUB · Proposta comercial</p>
 <p style="position:absolute;left:1432px;bottom:64px;width:100px;font-size:24px;color:#5B6B82;text-align:right">10</p>
 <img src="/_blob/2d8116a761d2e2a60cf22392448d7db8" alt="Gorod Studio" style="position:absolute;left:1582px;bottom:62px;width:210px;height:29px;object-fit:contain">
-<aside>A aplicação roda em contêiner Docker na VPS (reprodutível e fácil de escalar); o banco permanece no Supabase gerenciado, que cuida de backup e disponibilidade. Os volumes vêm de simulação com ~70 mil registros: cerca de 350 MB para três anos de um hospital. Domínio de exemplo: hub.[instituição].com.br.</aside>
+<aside>A aplicação roda em contêiner Docker na VPS (reprodutível e fácil de escalar); o banco e a autenticação rodam na mesma VPS (stack Supabase auto-hospedado), com backup contínuo para storage externo e restauração testada. A Gorod e o sócio da MaisFisio operam o ambiente. Os volumes vêm de simulação com ~70 mil registros: cerca de 350 MB para três anos de um hospital. Domínio de exemplo: hub.[instituição].com.br.</aside>
 </section>

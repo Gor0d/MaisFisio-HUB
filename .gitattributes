@@ -1,0 +1,4 @@
+# Scripts e configs de deploy rodam em Linux: sempre LF
+*.sh text eol=lf
+deploy/Caddyfile text eol=lf
+deploy/scripts/*.sql text eol=lf

@@ -79,7 +79,16 @@ Escolha provisória: **produção na Magalu Cloud (BV2-4-40 ou BV2-4-100)** e **
 
 Dimensionamento: ~350 MB para 3 anos de um hospital (~120 MB/ano); VPS 2 vCPU/4 GB/80 GB NVMe basta com banco gerenciado; 4 vCPU/8 GB/160 GB se tudo na VPS. Build da imagem fora da VPS (CI).
 
-**Pendente no deck:** os slides 12 (pacotes), 13 (pagamento) e 14 (horas por pacote) ainda mostram a escada Essencial/Profissional/Rede; precisam virar preço único (R$ 30.000 + R$ 2.500/mês). Os slides 12 a 14 são os de `investimento`, `pagamento` e `mensalidade` em `apresentacao-maisfisio/project/slides/`.
+**Decisões de 11/11/2026 (substituem o que conflitar acima):**
+- **Contratante único: MaisFisio.** Os hospitais que a MaisFisio atende (pelo menos 2) **não são parte do contrato**; a MaisFisio é a controladora/operadora perante eles e a Gorod entra como suboperadora. O contrato deve prever isso (LGPD) e proibir revenda ou cessão a terceiros sem acordo.
+- **Preço único:** R$ 30.000 (12x) + R$ 2.500/mês, só para a MaisFisio. Definir no contrato um teto de unidades/hospitais, usuários e armazenamento; acima dele, aditivo.
+- **Sócio-desenvolvedor:** recebe parte da implantação (ex.: 40% = R$ 12.000) e responde pelo plantão de suporte. Sem salário mensal; horas fora do pacote a R$ 150, a combinar.
+- **Migração gratuita** (parceiros): do Supabase para a VPS própria, com limite de horas e prazo no contrato. A Gorod arca com VPS e domínio.
+- **Infra nova: tudo na VPS**, sem Supabase. Custo estimado R$ 300–650/mês (VPS 4 vCPU/8 GB, domínio, backup externo, monitoramento). Sobra ~R$ 1.850–2.200/mês da manutenção.
+- **Feito em 11/11/2026:** stack de produção sem Supabase em `deploy/` (Caddy + web + GoTrue + PostgREST + Postgres, só 80/443 expostos, signup desativado, cabeçalhos HSTS/XFO/nosniff), migrações automáticas, backup/restauração **testados localmente** (volume apagado e restaurado; dados e contas idênticos). Guia: `docs/deploy-vps.md`. Falta repetir na VPS real, WAL/PITR, MFA, monitoramento, firewall e homologação.
+- **Pré-requisitos antes de vender "restauração testada":** auto-hospedar o stack (Postgres, GoTrue, PostgREST, Kong), backup contínuo (pgBackRest ou wal-g) para storage externo, teste de restauração, homologação com dados sintéticos, monitoramento e plano de incidente.
+
+**Pendente no deck:** os slides `investimento`, `pagamento` e `mensalidade` já foram reescritos no fonte para preço único; falta republicar (o link é compartilhado, aguarda autorização) e ajustar `infra`/`seguranca` para "VPS própria, sem Supabase".
 
 ## 5. Ideias para avaliar (abertas)
 

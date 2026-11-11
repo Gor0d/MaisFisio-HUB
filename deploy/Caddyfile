@@ -1,0 +1,24 @@
+# SITE_ADDRESS: domínio real (ex.: app.seudominio.com.br) = HTTPS automático com Let's Encrypt;
+# para teste local use "http://localhost:8088".
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	handle_path /auth/v1/* {
+		reverse_proxy auth:9999
+	}
+	handle_path /rest/v1/* {
+		reverse_proxy rest:3000
+	}
+	handle {
+		reverse_proxy web:3000
+	}
+}
