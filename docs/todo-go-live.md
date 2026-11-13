@@ -193,12 +193,13 @@ Itens de P3 que são só verificação de configuração (não código) ficam co
   - **Achado real**: "data futura rejeitada" só existia como restrição do datepicker no cliente — chamando a RPC direto não havia bloqueio nenhum do banco. Migração `202608030017` adiciona `check (record_date <= current_date)`/`check (assessment_date <= current_date)` em `production_records`/`scale_assessments`. Aplicada e confirmada em produção (03/08).
 
 - [ ] Executar a suíte final.
-  - `npm run lint`
-  - `npm run typecheck`
-  - `npm test`
-  - `npm run build`
-  - Testes E2E e RLS
-  - Lighthouse mobile
+  - [x] `npm run lint` (Claude, 12/11)
+  - [x] `npm run typecheck` (Claude, 12/11)
+  - [x] `npm test` — 28/28, incluindo os 17 de RLS/cenários negativos em PGlite (Claude, 12/11)
+  - [x] `npm run build` (Claude, 12/11)
+  - [ ] Testes E2E — **falta rodar**: exigem `.env.local` com `SUPABASE_SERVICE_ROLE_KEY` de produção, que não estava no checkout da revisão de 12/11. Rodar `npm run test:e2e` numa máquina com o `.env.local`.
+  - [ ] Lighthouse mobile — último resultado (01/08, `/login`): performance 99, acessibilidade 100, boas práticas 100. Repetir após o deploy das dependências atualizadas.
+  - **Segurança das dependências (12/11)**: desde 03/08 saíram avisos críticos para o Next.js (incl. RCE na otimização de imagens), zod, sharp, dompurify, postcss. `npm audit fix` sem `--force` levou Next 15.5.21 → 15.5.29, zod → 4.6.7, sharp → 0.35.5: `npm audit --omit=dev` = **0 vulnerabilidades**. Efeito colateral corrigido: o `audit fix` rebaixou o typescript-eslint para 6 (incompatível com ESLint 9, quebrava o lint); fixado em `^8` via `overrides`. Restam avisos só em dependências de desenvolvimento (vitest/tinypool, brace-expansion), que não vão para o servidor e exigem upgrade major do vitest — não tratado.
 
 ## Ações pendentes com você (nenhum agente pode fazer sozinho)
 
