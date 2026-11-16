@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { MUST_CHANGE_PASSWORD, mustChangePassword } from "@/lib/provisional-password";
+import { createServiceClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { ACTIVE_UNIT_COOKIE } from "@/lib/units";
 import { friendlyError } from "@/lib/utils";
@@ -41,6 +43,36 @@ export async function requestPasswordReset(_: AuthState, formData: FormData): Pr
   if (error?.status === 429) return { error: "Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente novamente." };
 
   return { success: "Se este e-mail estiver cadastrado, enviamos um link para redefinir a senha. Confira também a caixa de spam." };
+}
+
+// Usada tanto na ativação/recuperação por e-mail quanto na troca da senha
+// provisória. A senha é trocada com a sessão do próprio usuário; só depois
+// disso a marca de "senha provisória" é removida (via service_role, pois o
+// usuário não pode alterar app_metadata).
+export async function setOwnPassword(_: AuthState, formData: FormData): Promise<AuthState> {
+  const password = String(formData.get("password") ?? "");
+  const confirmation = String(formData.get("confirmation") ?? "");
+  if (password.length < 8) return { error: "A senha deve ter ao menos 8 caracteres." };
+  if (password !== confirmation) return { error: "A confirmação não corresponde à senha." };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Sua sessão expirou. Entre novamente para continuar." };
+
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) {
+    if (error.code === "same_password") return { error: "A nova senha deve ser diferente da senha provisória." };
+    if (error.code === "weak_password") return { error: "Senha fraca. Use letras e números, com ao menos 8 caracteres." };
+    return { error: "Não foi possível salvar a senha. Tente novamente." };
+  }
+
+  if (mustChangePassword(user)) {
+    const admin = createServiceClient();
+    const cleared = admin && await admin.auth.admin.updateUserById(user.id, { app_metadata: { [MUST_CHANGE_PASSWORD]: null } });
+    if (!cleared || cleared.error) return { error: "Sua senha foi salva, mas o acesso não foi liberado. Peça ao gestor para gerar uma nova senha provisória." };
+  }
+
+  redirect("/dashboard");
 }
 
 export async function logout() {

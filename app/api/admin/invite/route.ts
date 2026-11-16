@@ -1,6 +1,7 @@
 import { createClient as createAdminClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { generateProvisionalPassword, MUST_CHANGE_PASSWORD } from "@/lib/provisional-password";
 import { getSupabaseConfig } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 
@@ -10,6 +11,9 @@ const schema = z.object({
   role: z.enum(["admin", "coordenador", "colaborador"]),
   service_id: z.uuid(),
   unit_id: z.uuid("Selecione a unidade."),
+  // "password": conta criada já com senha provisória, devolvida uma única vez
+  // ao gestor (não depende de e-mail). "email": convite pelo Supabase Auth.
+  access_mode: z.enum(["password", "email"]).default("password"),
 });
 
 const response = (error: string, status: number) =>
@@ -109,6 +113,33 @@ export async function POST(request: Request) {
     return response("Já existe um usuário com este e-mail. Use a opção “Gerenciar” para alterar o acesso.", 409);
   }
 
+  const provisionalPassword = parsed.data.access_mode === "password" ? generateProvisionalPassword() : null;
+
+  if (authUser && provisionalPassword) {
+    // Convite por e-mail pendente que nunca chegou: converte para senha provisória.
+    const { error } = await admin.auth.admin.updateUserById(authUser.id, {
+      password: provisionalPassword,
+      email_confirm: true,
+      app_metadata: { [MUST_CHANGE_PASSWORD]: true },
+    });
+    if (error) return response("Não foi possível gerar a senha provisória. Tente novamente em instantes.", 503);
+  }
+
+  if (!authUser && provisionalPassword) {
+    const { data: created, error } = await admin.auth.admin.createUser({
+      email: parsed.data.email,
+      password: provisionalPassword,
+      email_confirm: true,
+      user_metadata: { full_name: parsed.data.full_name },
+      app_metadata: { [MUST_CHANGE_PASSWORD]: true },
+    });
+    if (error || !created.user) {
+      return response("Não foi possível criar o acesso agora. Tente novamente em instantes.", 503);
+    }
+    authUser = created.user;
+    createdNow = true;
+  }
+
   if (!authUser) {
     const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin}/auth/callback?next=/definir-senha`;
     const { data: invited, error } = await admin.auth.admin.inviteUserByEmail(
@@ -145,6 +176,16 @@ export async function POST(request: Request) {
     // ocorrer, o convite pendente continua recuperável na próxima tentativa.
     if (createdNow) await admin.auth.admin.deleteUser(authUser.id);
     return response(provisioningMessage(provisionError.code), 500);
+  }
+
+  if (provisionalPassword) {
+    // Única vez em que a senha sai do servidor; não é registrada em log.
+    return NextResponse.json({
+      ok: true,
+      recovered: !createdNow,
+      provisional_password: provisionalPassword,
+      message: "Acesso criado com senha provisória.",
+    });
   }
 
   return NextResponse.json({
