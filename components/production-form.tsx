@@ -3,9 +3,10 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle2, LoaderCircle, Save } from "lucide-react";
 import { useEffect, useMemo } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { CollaboratorPicker } from "@/components/collaborator-picker";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,7 +26,7 @@ export function ProductionForm({ userId, units, defaultUnitId, services, sectors
   // Chave por usuário: em computador compartilhado, o próximo colaborador que
   // fizer login nunca deve ver ou herdar o rascunho de quem usou antes.
   const draftKey = `maisfisio:production-draft:${userId}`;
-  const form = useForm<Values>({ resolver: zodResolver(productionSchema), defaultValues: { unit_id: defaultUnitId, service_id: defaultServiceId, record_date: todayISO(), shift: "MANHÃ", sector_id: "", collaborator_id: "", context: "geral", notes: "", values: [] } });
+  const form = useForm<Values>({ resolver: zodResolver(productionSchema), defaultValues: { unit_id: defaultUnitId, service_id: defaultServiceId, record_date: todayISO(), shift: "MANHÃ", sector_id: "", collaborator_ids: [], context: "geral", notes: "", values: [] } });
   const unitId = form.watch("unit_id"); const serviceId = form.watch("service_id"); const context = form.watch("context");
   const contexts = useMemo(() => [...new Set(indicators.filter((i) => i.service_id === serviceId).map((i) => i.context))], [indicators, serviceId]);
   const visibleIndicators = indicators.filter((i) => i.service_id === serviceId && i.context === context);
@@ -33,9 +34,15 @@ export function ProductionForm({ userId, units, defaultUnitId, services, sectors
   const allowedSectorIds = new Set(serviceSectors.filter((x) => x.service_id === serviceId).map((x) => x.sector_id));
 
   useEffect(() => { if (!contexts.includes(context) && contexts[0]) form.setValue("context", contexts[0]); }, [contexts, context, form]);
+  // Trocar serviço/unidade descarta colaboradores que não pertencem mais à seleção.
+  useEffect(() => {
+    const current = form.getValues("collaborator_ids") ?? [];
+    const allowed = current.filter((id) => unitCollaboratorIds.has(id) && collaborators.some((x) => x.id === id && x.service_id === serviceId));
+    if (allowed.length !== current.length) form.setValue("collaborator_ids", allowed);
+  }, [serviceId, unitCollaboratorIds, collaborators, form]);
   useEffect(() => {
     const raw = localStorage.getItem(draftKey); if (!raw) return;
-    try { const draft = JSON.parse(raw); if (draft.service_id && confirm("Há um rascunho de produção neste dispositivo. Deseja restaurá-lo?")) form.reset(draft); } catch { localStorage.removeItem(draftKey); }
+    try { const draft = JSON.parse(raw); if (draft.service_id && confirm("Há um rascunho de produção neste dispositivo. Deseja restaurá-lo?")) { const { collaborator_id: legacy, ...rest } = draft; form.reset({ ...rest, collaborator_ids: Array.isArray(rest.collaborator_ids) ? rest.collaborator_ids : legacy ? [legacy] : [] }); } } catch { localStorage.removeItem(draftKey); }
   }, [form, draftKey]);
   useEffect(() => { const subscription = form.watch((value) => localStorage.setItem(draftKey, JSON.stringify(value))); return () => subscription.unsubscribe(); }, [form, draftKey]);
 
@@ -54,7 +61,7 @@ export function ProductionForm({ userId, units, defaultUnitId, services, sectors
       <div className="field col-span-4"><Label>Serviço</Label><Select {...form.register("service_id")} disabled={lockService}><option value="">Selecione</option>{services.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select>{lockService && <input type="hidden" {...form.register("service_id")} />}</div>
       {contexts.length > 1 && <div className="field col-span-4"><Label>Contexto</Label><Select {...form.register("context")}><option value="geral">Atendimento geral</option><option value="enfermaria">Enfermaria</option><option value="ambulatorio">Ambulatório</option><option value="uti">UTI</option></Select></div>}
       <div className="field col-span-4"><Label>Data</Label><DateField iso={form.getValues("record_date")} onIso={(v) => form.setValue("record_date", v, { shouldValidate: true })} maxIso={todayISO()} /></div>
-      <div className="field col-span-4"><Label>Colaborador(a)</Label><Select {...form.register("collaborator_id")}><option value="">Selecione</option>{collaborators.filter((x) => x.service_id === serviceId && unitCollaboratorIds.has(x.id)).map((x) => <option key={x.id} value={x.id}>{x.canonical_name}</option>)}</Select></div>
+      <div className="field col-span-4"><Label>Colaboradores do turno</Label><Controller control={form.control} name="collaborator_ids" render={({ field, fieldState }) => <><CollaboratorPicker options={collaborators.filter((x) => x.service_id === serviceId && unitCollaboratorIds.has(x.id))} value={field.value ?? []} onChange={field.onChange} invalid={Boolean(fieldState.error)} />{fieldState.error && <p className="text-xs font-medium text-red-700">{fieldState.error.message}</p>}</>} /></div>
       <div className="field col-span-3"><Label>Turno</Label><Select {...form.register("shift")}><option>MANHÃ</option><option>TARDE</option><option>NOITE</option></Select></div>
       <div className="field col-span-3"><Label>Setor</Label><Select {...form.register("sector_id")}><option value="">Selecione</option>{sectors.filter((x) => x.unit_id === unitId && allowedSectorIds.has(x.id)).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select></div>
       <div className="field col-span-2"><Label>Tipo de setor</Label><Select {...form.register("sector_type")}><option value="">Não se aplica</option><option>Médica</option><option>Ortopédica</option><option>Cirúrgica</option></Select></div>

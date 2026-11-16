@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, BarChart3, Building2, ClipboardPlus, FileBarChart, LogOut, Menu, Settings, X } from "lucide-react";
+import { Activity, BarChart3, Building2, CalendarRange, ClipboardPlus, FileBarChart, LogOut, Menu, Settings, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { logout, setActiveUnit } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ const mainNav = [
   { href: "/dashboard", label: "Visão geral", icon: BarChart3 },
   { href: "/lancamento", label: "Lançar produção", icon: ClipboardPlus },
   { href: "/escalas", label: "Escalas clínicas", icon: Activity },
+  { href: "/painel-mensal", label: "Painel mensal", icon: CalendarRange },
   { href: "/relatorios", label: "Relatórios", icon: FileBarChart },
 ];
 
@@ -60,18 +61,18 @@ export function AppShell({ profile, units, activeUnitId, children }: { profile: 
   );
 
   return (
-    <div className="min-h-screen md:grid md:grid-cols-[244px_1fr]">
-      <aside className="sticky top-0 hidden h-screen border-r bg-card md:flex md:flex-col"><Sidebar /></aside>
+    <div className="min-h-screen md:grid md:grid-cols-[244px_1fr] print:block">
+      <aside className="sticky top-0 hidden h-screen border-r bg-card md:flex md:flex-col print:hidden"><Sidebar /></aside>
       {open && <div className="fixed inset-0 z-50 md:hidden"><button aria-label="Fechar menu" className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={() => setOpen(false)} /><aside className="relative flex h-full w-[82%] max-w-xs flex-col bg-card shadow-2xl"><button className="absolute right-3 top-3 grid size-10 place-items-center rounded-xl" onClick={() => setOpen(false)}><X className="size-5" /></button><Sidebar /></aside></div>}
       <div className="min-w-0">
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/90 px-4 backdrop-blur md:hidden">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/90 px-4 backdrop-blur md:hidden print:hidden">
           <button className="grid size-10 place-items-center rounded-xl border bg-card" onClick={() => setOpen(true)} aria-label="Abrir menu"><Menu className="size-5" /></button>
           <div className="flex items-center gap-2"><Image src="/icon.png" width={30} height={30} alt="" className="rounded-lg" /><span className="font-display font-bold">MaisFisio</span></div>
           <div className="grid size-9 place-items-center rounded-full bg-secondary text-xs font-bold text-secondary-foreground">{profile.full_name.slice(0, 2).toUpperCase()}</div>
         </header>
         <main className="mx-auto w-full max-w-[1500px] p-4 pb-24 sm:p-6 lg:p-8">{children}</main>
       </div>
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t bg-card/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t bg-card/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden print:hidden">
         {mainNav.map(({ href, label, icon: Icon }) => { const active = pathname === href || pathname.startsWith(`${href}/`); return <Link key={href} href={href} className={cn("flex min-h-16 flex-col items-center justify-center gap-1 text-[10px] font-medium", active ? "text-primary" : "text-muted-foreground")}><Icon className="size-5" />{label.split(" ")[0]}</Link>; })}
       </nav>
     </div>

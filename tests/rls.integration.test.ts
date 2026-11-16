@@ -643,5 +643,99 @@ describe("RLS executada em PostgreSQL", () => {
       const scale = await saveScale();
       expect(scale.rows).toHaveLength(1);
     });
+
+    describe("vários colaboradores por lançamento", () => {
+      const team = () => [ids.collaborators.galileu, ids.collaborators.coordinatorPhysio];
+      const teamOf = async (recordId: string) => (await queryAs<{ collaborator_id: string; position: number }>(
+        db, "service_role", null,
+        "select collaborator_id, position from public.production_record_collaborators where record_id = $1 order by position",
+        [recordId],
+      )).rows;
+
+      it("grava a equipe inteira na ordem escolhida, com o primeiro como principal", async () => {
+        const saved = await saveProduction({ record_date: "2026-06-01", shift: "NOITE", collaborator_id: undefined, collaborator_ids: team(), values: [{ indicator_id: negativeIndicatorId, value: "4" }] });
+        const recordId = Object.values(saved.rows[0])[0] as string;
+        expect(await teamOf(recordId)).toEqual([
+          { collaborator_id: ids.collaborators.galileu, position: 1 },
+          { collaborator_id: ids.collaborators.coordinatorPhysio, position: 2 },
+        ]);
+        const principal = await queryAs<{ collaborator_id: string }>(db, "service_role", null, "select collaborator_id from public.production_records where id = $1", [recordId]);
+        expect(principal.rows[0].collaborator_id).toBe(ids.collaborators.galileu);
+      });
+
+      it("recusa um segundo lançamento do mesmo serviço, dia, turno e setor, mesmo com outra equipe", async () => {
+        await expect(saveProduction({ record_date: "2026-06-01", shift: "NOITE", collaborator_id: undefined, collaborator_ids: [ids.collaborators.coordinatorPhysio] }))
+          .rejects.toThrow(/Já existe um lançamento/i);
+      });
+
+      it("recusa equipe vazia e colaborador de outro serviço, sem gravar nada pela metade", async () => {
+        await expect(saveProduction({ record_date: "2026-06-02", collaborator_id: undefined, collaborator_ids: [] }))
+          .rejects.toThrow(/ao menos um colaborador/i);
+        await expect(saveProduction({ record_date: "2026-06-02", collaborator_id: undefined, collaborator_ids: [ids.collaborators.galileu, ids.collaborators.coordinatorSpeech] }))
+          .rejects.toThrow(/não pertence ao serviço/i);
+        const leftovers = await queryAs(db, "service_role", null, "select 1 from public.production_records where record_date = '2026-06-02'");
+        expect(leftovers.rows).toHaveLength(0);
+      });
+
+      it("filtro por colaborador nos totais e na view encontra o lançamento por qualquer membro da equipe", async () => {
+        const totalFor = async (collaboratorId: string) => (await queryAs<{ total: string | null }>(
+          db, "authenticated", ids.users.adminGalileu,
+          `select total from public.production_metrics_totals('2026-06-01'::date, '2026-06-01'::date, $1::uuid, $2::uuid, null::uuid, null::public.work_shift, $3::uuid) where indicator_id = $4`,
+          [ids.units.galileu, ids.services.physio, collaboratorId, negativeIndicatorId],
+        )).rows[0].total;
+        expect(Number(await totalFor(ids.collaborators.galileu))).toBe(4);
+        expect(Number(await totalFor(ids.collaborators.coordinatorPhysio))).toBe(4);
+
+        const rows = await queryAs<{ collaborator_ids: string[] }>(
+          db, "authenticated", ids.users.adminGalileu,
+          "select collaborator_ids from public.production_metrics where record_date = '2026-06-01' and indicator_id = $1",
+          [negativeIndicatorId],
+        );
+        expect(rows.rows).toHaveLength(1);
+        expect(rows.rows[0].collaborator_ids).toEqual(team());
+      });
+
+      it("agregados por mês/turno respeitam a regra de acesso (função security definer)", async () => {
+        const grouped = (role: "authenticated" | "anon", userId: string | null, unit: string | null, group: string) => queryAs<{ bucket: string; total: string | null; indicator_id: string }>(
+          db, role, userId,
+          `select bucket, total, indicator_id from public.production_metrics_grouped('2026-06-01'::date, '2026-06-30'::date, $1::uuid, null::uuid, null::uuid, null::public.work_shift, null::uuid, $2, null::uuid) where indicator_id = $3`,
+          [unit, group, negativeIndicatorId],
+        );
+        // Admin da Galileu: vê o lançamento de 01/06 (equipe) e o de 03/06 (importação, sem valor).
+        const month = await grouped("authenticated", ids.users.adminGalileu, ids.units.galileu, "month");
+        expect(month.rows).toEqual([{ bucket: "2026-06", total: "4.0000", indicator_id: negativeIndicatorId }]);
+        const shift = await grouped("authenticated", ids.users.adminGalileu, ids.units.galileu, "shift");
+        expect(shift.rows.map((row) => row.bucket)).toEqual(["NOITE"]);
+        // Colaborador de outra unidade não vê nada da Galileu, nem pedindo a unidade explicitamente.
+        expect((await grouped("authenticated", ids.users.collaboratorTerezinha, ids.units.galileu, "month")).rows).toEqual([]);
+        expect((await grouped("authenticated", ids.users.collaboratorTerezinha, null, "month")).rows).toEqual([]);
+        // Coordenador de outro serviço (Fono) na mesma unidade não vê a Fisioterapia.
+        expect((await grouped("authenticated", ids.users.coordinatorSpeech, ids.units.galileu, "month")).rows).toEqual([]);
+        // Matriz vê; anônimo não executa.
+        expect((await grouped("authenticated", ids.users.superAdmin, null, "month")).rows).toHaveLength(1);
+        await expect(grouped("anon", null, null, "month")).rejects.toThrow(/permission denied/i);
+      });
+
+      it("totais seguem a mesma regra: outra unidade e outro serviço recebem nulo", async () => {
+        const totalAs = async (userId: string) => (await queryAs<{ total: string | null }>(
+          db, "authenticated", userId,
+          `select total from public.production_metrics_totals('2026-06-01'::date, '2026-06-30'::date, null::uuid, null::uuid, null::uuid) where indicator_id = $1`,
+          [negativeIndicatorId],
+        )).rows[0]?.total ?? null;
+        expect(Number(await totalAs(ids.users.adminGalileu))).toBe(4);
+        expect(await totalAs(ids.users.collaboratorTerezinha)).toBeNull();
+        expect(await totalAs(ids.users.coordinatorSpeech)).toBeNull();
+      });
+
+      it("lançamento inserido direto na tabela (importação) entra com o principal na equipe", async () => {
+        const direct = await queryAs<{ id: string }>(
+          db, "service_role", null,
+          `insert into public.production_records (unit_id, service_id, record_date, shift, sector_id, collaborator_id, context, created_by)
+           values ($1, $2, '2026-06-03', 'MANHÃ', $3, $4, 'geral', $5) returning id`,
+          [ids.units.galileu, ids.services.physio, ids.sectors.galileu, ids.collaborators.coordinatorPhysio, ids.users.adminGalileu],
+        );
+        expect(await teamOf(direct.rows[0].id)).toEqual([{ collaborator_id: ids.collaborators.coordinatorPhysio, position: 1 }]);
+      });
+    });
   });
 });
