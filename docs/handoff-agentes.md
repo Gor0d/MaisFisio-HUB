@@ -147,3 +147,29 @@ Após o push, confirmei em modo somente leitura no banco de produção:
 `admin_provision_invited_user`, `admin_audit_logs` e a sobrecarga de sete
 parâmetros de `production_metrics_totals`. Portanto o deploy da aplicação não
 fica dependente de uma migração SQL ainda pendente.
+
+### 16/11/2026 — Claude → próxima sessão (outro PC) / Codex
+
+**Já em produção (`main`, Vercel):** correção de segurança do Next (15.5.29), acesso por senha provisória com troca obrigatória (E2E `e2e/provisional-password.spec.ts`), nova tela de login sem nome de hospital + logo corrigida + `/selecionar-unidade` após a senha.
+
+**Pronto, mas NÃO publicado — branch `feat/colaboradores-painel-mensal` (commit `e83c7c5`):**
+- Vários colaboradores por lançamento (`production_record_collaborators`), um lançamento por serviço/dia/turno/setor/contexto, nomes compostos da planilha desativados das listas (histórico intacto).
+- Dashboard com agregados do banco (`production_metrics_grouped`) em vez de linhas brutas; exportação sob demanda.
+- Painel mensal de B.I. em `/painel-mensal` (12 meses, meta, tabela, modo apresentação, impressão).
+- Suíte: lint, typecheck, 39/39 testes (PGlite). E2E ajustado, mas ainda não rodado contra produção com a migração.
+
+**Ordem obrigatória para publicar (não inverter):**
+1. Aplicar no SQL Editor do Supabase, nesta ordem, `supabase/migrations/202611160019_production_multi_collaborators.sql` e `supabase/migrations/202611160020_metrics_grouped_performance.sql`, depois registrar:
+   `insert into supabase_migrations.schema_migrations (version, name) values ('202611160019','production_multi_collaborators'), ('202611160020','metrics_grouped_performance') on conflict do nothing;`
+   A migração é compatível com o código atual em produção (o RPC continua aceitando `collaborator_id` único).
+2. Só então mesclar a branch no `main` e fazer push (deploy automático). Antes disso o formulário novo envia `collaborator_ids` para um RPC que não os conhece e o lançamento falha.
+3. `npm run test:e2e` (precisa de `.env.local` de produção) e `npx tsx scripts/perf-check.mts "DEPOIS"`.
+
+**Linha de base de desempenho (produção, 16/11, antes da migração):** totais ~8,3 s (30 dias ou 12 meses); linhas brutas do dashboard 16 mil/30 dias e 197 mil/12 meses; tela do dashboard 2,1 s (padrão) e 14,3 s (12 meses); lançamento 1,7 s; escalas 1,7 s; relatórios 1,3 s; login→dashboard 3,3 s.
+
+**Pendências abertas:**
+- Supabase Auth → URL Configuration: Site URL ainda é `http://localhost:3000` (link de "esqueci minha senha" cai no localhost). Trocar para `https://mais-fisio-hub.vercel.app` e incluir `https://mais-fisio-hub.vercel.app/**` em Redirect URLs.
+- Prints das telas e slide "Telas do sistema" na apresentação (https://claude.ai/artifact/L1f77ziSMTwNTEu4dUiYQd), depois do deploy acima.
+- Apresentação: slides 12–14 já com R$ 4.500 de implantação + R$ 500/mês; confirmar o valor/hora entre colchetes ([R$ 150]) e revisar os slides de infraestrutura/segurança/fases, que ainda podem citar valores ou promessas antigos.
+- Branch `feat/qualidade-interact-docker` (módulo Qualidade) segue separada; mesclar `main` nela antes de retomar. Sua migração `202611070018` também não está em produção.
+- A chave `service_role` de produção foi colada no chat em 15/11: rotacionar quando possível (ou na migração para a VPS, que gera chaves novas).
