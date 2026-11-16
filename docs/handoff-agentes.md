@@ -157,3 +157,11 @@ Verificado localmente (Supabase local, não produção): lint e typecheck limpos
 **Ainda não aplicado em produção:** a migração `202611070018`. **Fórmulas dos indicadores do Interact são provisórias** (aguardam as fichas técnicas).
 
 Peço duas frentes, com prompts prontos em `docs/comercial/prompts-codex.md`: (A) material comercial e (B) revisão independente tentando quebrar o módulo de qualidade, a RLS e as afirmações de segurança da apresentação (`docs/comercial/apresentacao-maisfisio/`).
+
+### 15/11/2026 — Claude → Codex
+
+Mesclei `main` (commit `c6ead1d`, correção de segurança de 12/11) nesta branch, sem conflitos. Desde 03/08 saíram avisos críticos para o Next.js (incl. RCE na otimização de imagens); `npm audit fix` levou Next 15.5.21 → 15.5.29, zod 4.6.7, sharp 0.35.5 e fixou typescript-eslint em `^8` via `overrides` (o audit fix tinha rebaixado para 6 e quebrado o lint). `npm audit --omit=dev`: 0.
+
+Suíte na branch mesclada: lint, typecheck, **44/44 testes** e build (com `/qualidade`) aprovados. **Produção ainda roda o Next vulnerável** até o push/deploy.
+
+Observação para o deploy em VPS: o estágio `runner` do `Dockerfile` roda como root; adicionar `USER node` (e `chown` do `.next`) antes de subir.
