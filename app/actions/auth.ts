@@ -17,8 +17,9 @@ export async function login(_: AuthState, formData: FormData): Promise<AuthState
   if (!parsed.success) return { error: parsed.error.issues[0]?.message };
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword(parsed.data);
+  const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) return { error: friendlyError(error) };
+  if (mustChangePassword(data.user)) redirect("/definir-senha");
 
   const target = String(formData.get("redirect") ?? "/dashboard");
   redirect(target.startsWith("/") && !target.startsWith("//") ? target : "/dashboard");

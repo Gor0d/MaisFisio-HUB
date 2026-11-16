@@ -5,8 +5,9 @@ import { createServiceClient } from "@/lib/supabase/admin";
 
 // Substitui o "esqueci minha senha" por e-mail enquanto não há SMTP
 // institucional: o gestor gera uma nova senha provisória, repassa à pessoa e
-// ela é obrigada a trocá-la no próximo acesso (inclusive em sessões já abertas,
-// pois o middleware consulta o usuário a cada requisição).
+// ela é obrigada a trocá-la no próximo acesso. O Supabase encerra as sessões
+// abertas da pessoa ao trocar a senha (confirmado no E2E), e a senha antiga
+// deixa de funcionar na hora.
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ userId: string }> },
