@@ -7,7 +7,7 @@ import { MUST_CHANGE_PASSWORD, mustChangePassword } from "@/lib/provisional-pass
 import { createServiceClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { ACTIVE_UNIT_COOKIE } from "@/lib/units";
-import { friendlyError } from "@/lib/utils";
+import { friendlyError, safeRedirectTarget } from "@/lib/utils";
 import { loginSchema, recoverPasswordSchema } from "@/lib/validation";
 
 export type AuthState = { error?: string; success?: string };
@@ -21,8 +21,18 @@ export async function login(_: AuthState, formData: FormData): Promise<AuthState
   if (error) return { error: friendlyError(error) };
   if (mustChangePassword(data.user)) redirect("/definir-senha");
 
-  const target = String(formData.get("redirect") ?? "/dashboard");
-  redirect(target.startsWith("/") && !target.startsWith("//") ? target : "/dashboard");
+  // A escolha de unidade decide sozinha: com uma unidade só, segue direto.
+  const target = safeRedirectTarget(formData.get("redirect"));
+  redirect(`/selecionar-unidade?next=${encodeURIComponent(target)}`);
+}
+
+export async function chooseUnit(formData: FormData) {
+  const unitId = String(formData.get("unit_id") ?? "");
+  const next = safeRedirectTarget(formData.get("next"));
+  if (/^([0-9a-f-]{36}|all)$/.test(unitId)) {
+    (await cookies()).set(ACTIVE_UNIT_COOKIE, unitId, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
+  }
+  redirect(next);
 }
 
 async function appOrigin() {

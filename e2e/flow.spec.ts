@@ -45,7 +45,7 @@ test.describe("Fluxo principal: login → lançamento → Barthel entrada/saída
     await test.step("login", async () => {
       await page.goto("/login");
       await page.getByLabel("E-mail").fill(state.email);
-      await page.getByLabel("Senha").fill(state.password);
+      await page.getByLabel("Senha", { exact: true }).fill(state.password);
       await page.getByRole("button", { name: "Entrar no sistema" }).click();
       // Primeira requisição contra o dev server ainda pode estar compilando a
       // server action sob demanda (Next dev), então dá mais tempo só aqui.

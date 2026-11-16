@@ -5,7 +5,15 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export const ptBRDate = new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" });
+// Destino de redirecionamento vindo da URL/formulário: só caminhos internos.
+// Bloqueia "//host" e "/\host" (navegadores tratam "\" como "/"), que
+// levariam a pessoa para outro site depois do login.
+export function safeRedirectTarget(target: unknown, fallback = "/dashboard") {
+  const value = typeof target === "string" ? target : "";
+  return value.startsWith("/") && !value.startsWith("//") && !value.startsWith("/\\") ? value : fallback;
+}
+
+export const ptBRDate =new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" });
 export const ptBRNumber = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
 
 export function todayISO() {
