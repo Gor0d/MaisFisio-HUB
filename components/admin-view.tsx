@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Building2, ClipboardList, Gauge, LoaderCircle, Pencil, Plus, Settings2, UserPlus, Users } from "lucide-react";
+import { Building2, ClipboardList, Copy, Gauge, KeyRound, LoaderCircle, Pencil, Plus, Settings2, UserPlus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -106,6 +106,8 @@ function Sectors({ units, activeUnitId, services, sectors, serviceSectors }: { u
 function Collaborators({ role, currentUserId, currentServiceId, units, activeUnitId, services, profiles, profileUnits, collaborators, collaboratorUnits }: { role: string; currentUserId: string; currentServiceId: string | null; units: UnitRow[]; activeUnitId: string | null; services: ServiceRow[]; profiles: ProfileRow[]; profileUnits: ProfileUnitRow[]; collaborators: CollaboratorRow[]; collaboratorUnits: CollaboratorUnitRow[] }) {
   const [pending, setPending] = useState(false);
   const [editingProfile, setEditingProfile] = useState<ProfileRow | null>(null);
+  // Senha provisória recém-gerada: fica só na memória desta tela, até "Concluído".
+  const [credential, setCredential] = useState<{ name: string; email?: string; password: string } | null>(null);
   const unitNames = new Map(units.map((unit) => [unit.id, unit.name]));
   const serviceNames = new Map(services.map((service) => [service.id, service.name]));
   const collaboratorByUser = new Map(collaborators.filter((collaborator) => collaborator.user_id).map((collaborator) => [collaborator.user_id!, collaborator]));
@@ -125,8 +127,34 @@ function Collaborators({ role, currentUserId, currentServiceId, units, activeUni
       toast.error(data.error);
       return;
     }
+    if (data.provisional_password) {
+      setCredential({ name: String(body.full_name), email: String(body.email), password: data.provisional_password });
+      return;
+    }
     toast.success(data.message ?? "Convite enviado e acesso configurado.");
     location.reload();
+  }
+
+  async function resetPassword() {
+    if (!editingProfile) return;
+    if (!confirm(`Gerar nova senha provisória para ${editingProfile.full_name}? A senha atual deixa de funcionar imediatamente.`)) return;
+    setPending(true);
+    const response = await fetch(`/api/admin/users/${editingProfile.user_id}/password`, { method: "POST" });
+    const data = await response.json();
+    setPending(false);
+    if (!response.ok) {
+      toast.error(data.error);
+      return;
+    }
+    setCredential({ name: editingProfile.full_name, password: data.provisional_password });
+    setEditingProfile(null);
+  }
+
+  async function copyCredential() {
+    if (!credential) return;
+    const text = `Acesso ao MaisFisio HUB\n${location.origin}\n${credential.email ? `E-mail: ${credential.email}\n` : ""}Senha provisória: ${credential.password}\nNo primeiro acesso o sistema pede para você criar sua própria senha.`;
+    try { await navigator.clipboard.writeText(text); toast.success("Copiado. Envie direto para a pessoa."); }
+    catch { toast.error("Não foi possível copiar; selecione a senha e copie manualmente."); }
   }
 
   async function updateAccess(formData: FormData) {
@@ -170,6 +198,14 @@ function Collaborators({ role, currentUserId, currentServiceId, units, activeUni
   const selectedWorkUnits = new Set(selectedCollaborator ? collaboratorUnits.filter((link) => link.collaborator_id === selectedCollaborator.id).map((link) => link.unit_id) : []);
 
   return <div className="grid gap-6">
+    {credential && <Card className="border-emerald-300">
+      <CardHeader><CardTitle>Senha provisória de {credential.name}</CardTitle><CardDescription>Ela aparece só agora: copie e envie diretamente para a pessoa (mensagem privada). No primeiro acesso o sistema exige que ela crie a própria senha.</CardDescription></CardHeader>
+      <CardContent className="grid gap-4">
+        {credential.email && <p className="text-sm">E-mail de acesso: <span className="font-medium">{credential.email}</span></p>}
+        <p className="select-all rounded-lg border bg-secondary px-4 py-3 text-center font-mono text-xl tracking-wider">{credential.password}</p>
+        <div className="flex flex-wrap gap-2"><Button type="button" onClick={copyCredential}><Copy className="size-4" />Copiar mensagem de acesso</Button><Button type="button" variant="outline" onClick={() => location.reload()}>Concluído</Button></div>
+      </CardContent>
+    </Card>}
     {editingProfile && <Card>
       <CardHeader><CardTitle>Gerenciar acesso</CardTitle><CardDescription>Altere papel, serviço e vínculos de {editingProfile.full_name}.</CardDescription></CardHeader>
       <CardContent><form key={editingProfile.user_id} action={updateAccess} className="grid gap-5 lg:grid-cols-2">
@@ -179,12 +215,12 @@ function Collaborators({ role, currentUserId, currentServiceId, units, activeUni
         <div className="field"><Label>Serviço</Label><Select name="service_id" defaultValue={editingProfile.service_id ?? ""} disabled={role === "coordenador"} required>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</Select>{role === "coordenador" && <input type="hidden" name="service_id" value={currentServiceId ?? ""} />}</div>
         <fieldset className="grid gap-2"><legend className="mb-1 text-sm font-medium">Unidades de acesso ao sistema</legend>{units.map((unit) => <label key={unit.id} className="flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm"><input type="checkbox" name="unit_ids" value={unit.id} defaultChecked={selectedAccessUnits.has(unit.id)} className="size-4 accent-primary" />{unit.name}</label>)}</fieldset>
         <fieldset className="grid gap-2"><legend className="mb-1 text-sm font-medium">Unidades de atuação profissional</legend>{units.map((unit) => <label key={unit.id} className="flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm"><input type="checkbox" name="collaborator_unit_ids" value={unit.id} defaultChecked={selectedWorkUnits.has(unit.id)} className="size-4 accent-primary" />{unit.name}</label>)}</fieldset>
-        <div className="flex gap-2 lg:col-span-2"><Button disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : <Settings2 className="size-4" />}{pending ? "Salvando..." : "Salvar acesso"}</Button><Button type="button" variant="outline" onClick={() => setEditingProfile(null)}>Cancelar</Button></div>
+        <div className="flex gap-2 lg:col-span-2"><Button disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : <Settings2 className="size-4" />}{pending ? "Salvando..." : "Salvar acesso"}</Button><Button type="button" variant="outline" onClick={resetPassword} disabled={pending}><KeyRound className="size-4" />Gerar nova senha provisória</Button><Button type="button" variant="outline" onClick={() => setEditingProfile(null)}>Cancelar</Button></div>
       </form></CardContent>
     </Card>}
 
     <div className="grid gap-6 xl:grid-cols-[.8fr_1.2fr]">
-      <Card className="h-fit"><CardHeader><CardTitle>Convidar usuário</CardTitle><CardDescription>O acesso só é criado após o convite institucional.</CardDescription></CardHeader><CardContent><form action={invite} className="grid gap-4"><div className="field"><Label>Nome completo do profissional</Label><Input name="full_name" required /></div><div className="field"><Label>E-mail</Label><Input name="email" type="email" required /></div><div className="field"><Label>Unidade</Label><Select name="unit_id" defaultValue={activeUnitId ?? units[0]?.id ?? ""} required>{units.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}</Select></div><div className="field"><Label>Serviço</Label><Select name="service_id" defaultValue={currentServiceId ?? services[0]?.id ?? ""} disabled={role === "coordenador"}>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</Select>{role === "coordenador" && <input type="hidden" name="service_id" value={currentServiceId ?? ""} />}</div><div className="field"><Label>Papel</Label><Select name="role" disabled={role === "coordenador"}><option value="colaborador">Colaborador</option>{(role === "admin" || role === "super_admin") && <><option value="coordenador">Coordenador</option><option value="admin">Administrador</option></>}</Select>{role === "coordenador" && <input type="hidden" name="role" value="colaborador" />}</div><Button disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : <UserPlus className="size-4" />}{pending ? "Enviando..." : "Enviar convite"}</Button></form></CardContent></Card>
+      <Card className="h-fit"><CardHeader><CardTitle>Novo usuário</CardTitle><CardDescription>Sem cadastro público: só um gestor cria acessos.</CardDescription></CardHeader><CardContent><form action={invite} className="grid gap-4"><div className="field"><Label>Nome completo do profissional</Label><Input name="full_name" required /></div><div className="field"><Label>E-mail</Label><Input name="email" type="email" required /></div><div className="field"><Label>Unidade</Label><Select name="unit_id" defaultValue={activeUnitId ?? units[0]?.id ?? ""} required>{units.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}</Select></div><div className="field"><Label>Serviço</Label><Select name="service_id" defaultValue={currentServiceId ?? services[0]?.id ?? ""} disabled={role === "coordenador"}>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</Select>{role === "coordenador" && <input type="hidden" name="service_id" value={currentServiceId ?? ""} />}</div><div className="field"><Label>Papel</Label><Select name="role" disabled={role === "coordenador"}><option value="colaborador">Colaborador</option>{(role === "admin" || role === "super_admin") && <><option value="coordenador">Coordenador</option><option value="admin">Administrador</option></>}</Select>{role === "coordenador" && <input type="hidden" name="role" value="colaborador" />}</div><div className="field"><Label>Forma de acesso</Label><Select name="access_mode" defaultValue="password"><option value="password">Senha provisória (eu repasso à pessoa)</option><option value="email">Convite por e-mail</option></Select></div><Button disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : <UserPlus className="size-4" />}{pending ? "Criando..." : "Criar acesso"}</Button></form></CardContent></Card>
 
       <Card><CardHeader><CardTitle>Usuários com acesso</CardTitle><CardDescription>{profiles.length} perfis no seu escopo administrativo</CardDescription></CardHeader><CardContent className="divide-y p-0">{profiles.map((profile) => { const accessUnits = profileUnits.filter((link) => link.user_id === profile.user_id).map((link) => unitNames.get(link.unit_id)).filter(Boolean); return <div key={profile.user_id} className="flex items-center gap-3 px-5 py-3.5 md:px-6"><div className="grid size-9 place-items-center rounded-full bg-secondary text-xs font-bold">{profile.full_name.slice(0, 2).toUpperCase()}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{profile.full_name}</p><p className="truncate text-xs text-muted-foreground">{serviceNames.get(profile.service_id ?? "") ?? "Matriz"}{accessUnits.length ? ` · ${accessUnits.join(", ")}` : ""}</p><div className="mt-1 flex gap-1.5"><Badge>{roleLabels[profile.role] ?? profile.role}</Badge><Badge className={profile.active ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}>{profile.active ? "Ativo" : "Inativo"}</Badge></div></div><Button type="button" size="sm" variant="outline" disabled={!canManage(profile)} onClick={() => setEditingProfile(profile)}>{profile.user_id === currentUserId ? "Você" : profile.role === "super_admin" ? "Matriz" : "Gerenciar"}</Button></div>; })}{!profiles.length && <p className="p-6 text-sm text-muted-foreground">Nenhum usuário no seu escopo.</p>}</CardContent></Card>
     </div>

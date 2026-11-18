@@ -1,5 +1,9 @@
 # Checklist para conclusão e go-live
 
+> **15/11/2026 — start do MVP provisório.** O HUB entra em uso agora na Vercel + Supabase (`https://mais-fisio-hub.vercel.app`), e a migração para a VPS própria fica para dezembro. Acesso da equipe sem e-mail (senha provisória com troca obrigatória), avaliação do Resend e plano da migração: `docs/plano-migracao-vps.md`.
+>
+> - [x] (Claude) Senha provisória: cadastro sem e-mail, troca obrigatória no 1º acesso, "Gerar nova senha provisória" na gestão de usuários. Validado em 15/11 com `e2e/provisional-password.spec.ts` contra o Supabase de produção (desktop e celular, 4/4 com o fluxo principal; usuários descartáveis removidos). O E2E achou e corrigiu um desvio: o redirect da server action de login renderizava o dashboard sem passar pelo middleware — agora o layout protegido também bloqueia.
+
 Este documento organiza o trabalho restante do MaisFisio HUB. A ordem abaixo deve ser respeitada: itens de segurança e integridade vêm antes de melhorias visuais ou operacionais.
 
 ## Como Claude e Codex trabalham neste checklist em paralelo

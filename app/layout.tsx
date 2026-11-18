@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: { default: "MaisFisio", template: "%s | MaisFisio" },
-  description: "Indicadores assistenciais do Hospital Público Estadual Galileu",
+  description: "Indicadores assistenciais das unidades atendidas pela MaisFisio",
   applicationName: "MaisFisio",
   manifest: "/manifest.webmanifest",
   icons: { icon: "/icon.png", apple: "/apple-icon.png" },
