@@ -88,6 +88,18 @@ Dimensionamento: ~350 MB para 3 anos de um hospital (~120 MB/ano); VPS 2 vCPU/4 
 - **Feito em 11/11/2026:** stack de produção sem Supabase em `deploy/` (Caddy + web + GoTrue + PostgREST + Postgres, só 80/443 expostos, signup desativado, cabeçalhos HSTS/XFO/nosniff), migrações automáticas, backup/restauração **testados localmente** (volume apagado e restaurado; dados e contas idênticos). Guia: `docs/deploy-vps.md`. Falta repetir na VPS real, WAL/PITR, MFA, monitoramento, firewall e homologação.
 - **Pré-requisitos antes de vender "restauração testada":** auto-hospedar o stack (Postgres, GoTrue, PostgREST, Kong), backup contínuo (pgBackRest ou wal-g) para storage externo, teste de restauração, homologação com dados sintéticos, monitoramento e plano de incidente.
 
+**Decisão de 18/11/2026 (substitui os valores acima):** implantação **R$ 4.500** + manutenção **R$ 500/mês**, pagamento por **Pix**. Primeiro ano: R$ 10.500 em qualquer plano.
+
+| Plano | Parcela da implantação | Com a manutenção | Duração |
+|---|---|---|---|
+| À vista (sugestão: 5% de desconto = R$ 4.275) | R$ 4.500 | R$ 5.000 no 1º mês | 1 mês |
+| 3x sem juros | R$ 1.500 | R$ 2.000/mês | 3 meses |
+| 6x sem juros | R$ 750 | R$ 1.250/mês | 6 meses |
+| 12x sem juros (está no deck) | R$ 375 | R$ 875/mês | 12 meses |
+| Entrada + 3x (recomendado) | R$ 1.500 na assinatura + 3x R$ 1.000 | R$ 1.500/mês nos 3 meses | 4 meses |
+
+Depois da implantação quitada: R$ 500/mês. Cobrança recomendada por **Pix Automático** (autorização única no app do banco do cliente; tarifa por transação fica com o recebedor, conferir na tabela do banco da Gorod). O "Pix Parcelado" do Banco Central ainda não está confirmado como produto oficial: se o cliente parcelar pelo app do banco dele, a Gorod recebe à vista e os juros ficam com o cliente. Parcelar direto com a Gorod deixa o risco de inadimplência com a Gorod: prever no contrato multa de 2% + juros de 1% ao mês, suspensão após 30 dias e vencimento antecipado das parcelas da implantação.
+
 **Pendente no deck:** os slides `investimento`, `pagamento` e `mensalidade` já foram reescritos no fonte para preço único; falta republicar (o link é compartilhado, aguarda autorização) e ajustar `infra`/`seguranca` para "VPS própria, sem Supabase".
 
 ## 5. Ideias para avaliar (abertas)
