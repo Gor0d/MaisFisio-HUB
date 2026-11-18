@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { startOfMonth } from "date-fns";
 import { ReportsView } from "@/components/reports-view";
+import { previousMonth } from "@/lib/report-model";
 import { SetupRequired } from "@/components/setup-required";
 import { fetchAllRows } from "@/lib/supabase/pagination";
 import { getSession } from "@/lib/session";
@@ -27,8 +28,11 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   // Totais agregados no banco (soma/média/derivada por tipo de indicador) —
   // sem risco de corte e sem somar percentuais como se fossem contagem.
   // Roda junto com a busca das escalas (nenhuma depende da outra).
-  const [totals, scales, targets] = await Promise.all([
+  const prev = previousMonth(month); const prevStart = `${prev}-01`; const prevEnd = new Date(Number(prev.slice(0, 4)), Number(prev.slice(5, 7)), 0).toISOString().slice(0, 10);
+  const [totals, previousTotals, catalog, scales, targets] = await Promise.all([
     supabase.rpc("production_metrics_totals", { p_start: start, p_end: end, p_unit: activeUnitId, p_service: null, p_sector: null }),
+    supabase.rpc("production_metrics_totals", { p_start: prevStart, p_end: prevEnd, p_unit: activeUnitId, p_service: null, p_sector: null }),
+    supabase.from("indicators").select("id,display_order,context,services(code,name)"),
     fetchAllRows<Record<string, unknown>>((from, to) => {
       let q = supabase.from("scale_assessment_results").select("scale_type,moment,total,improved").gte("assessment_date", start).lte("assessment_date", end).eq("complete", true);
       if (activeUnitId) q = q.eq("unit_id", activeUnitId);
@@ -37,5 +41,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     targetsQuery,
   ]);
 
-  return <ReportsView month={month} unitName={activeUnitId ? units.find((unit) => unit.id === activeUnitId)?.name ?? "Unidade ativa" : "Todas as unidades"} activeUnitId={activeUnitId} totals={totals.data ?? []} scales={scales as never} targets={targets.data ?? []} />;
+  type CatalogRow = { id: string; display_order: number | null; context: string | null; services: { code: string; name: string } | { code: string; name: string }[] | null };
+  const catalogItems = ((catalog.data ?? []) as CatalogRow[]).map((row) => { const service = Array.isArray(row.services) ? row.services[0] : row.services; return { id: row.id, display_order: row.display_order, context: row.context, service_code: service?.code ?? "outros", service_name: service?.name ?? "Outros" }; });
+  return <ReportsView month={month} unitName={activeUnitId ? units.find((unit) => unit.id === activeUnitId)?.name ?? "Unidade ativa" : "Todas as unidades"} activeUnitId={activeUnitId} totals={totals.data ?? []} previousTotals={previousTotals.data ?? []} catalog={catalogItems} scales={scales as never} targets={targets.data ?? []} />;
 }
