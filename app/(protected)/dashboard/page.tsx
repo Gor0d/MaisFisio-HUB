@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { differenceInCalendarDays, subDays } from "date-fns";
-import { DashboardView } from "@/components/dashboard-view";
+import { DashboardView, type Grouped } from "@/components/dashboard-view";
 import { SetupRequired } from "@/components/setup-required";
 import { fetchAllRows } from "@/lib/supabase/pagination";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -8,7 +8,6 @@ import { getSession } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Visão geral" };
 
-const METRIC_COLUMNS = "record_date,indicator_code,indicator_name,kind,value,service_id,sector_id,unit_id,shift,sector_type,collaborator_id,context";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
@@ -60,7 +59,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   // paralelo em vez de sequencial evita somar a latência de cada uma (a
   // função Vercel roda na mesma região do Supabase — gru1 — mas mesmo assim
   // 6 idas e voltas em série custam bem mais que 6 em paralelo).
-  const [totals, previousTotals, services, sectors, collaborators, targets, metrics, scales] = await Promise.all([
+  // Tendência por dia em períodos de até ~3 meses; acima disso, por mês.
+  const grain: "day" | "month" = spanDays > 92 ? "month" : "day";
+  const grouped = (group: string) => supabase.rpc("production_metrics_grouped", { p_start: start, p_end: end, p_unit: activeUnitId, p_service: serviceFilter, p_sector: sectorFilter, p_shift: shiftFilter, p_collaborator: collaboratorFilter, p_group: group, p_indicator: null });
+  const emptyGroup = Promise.resolve({ data: [] as Grouped[] });
+
+  const [totals, previousTotals, services, sectors, collaborators, collaboratorNames, targets, trend, byShift, bySector, bySectorType, scales] = await Promise.all([
     // Totais por indicador vêm agregados do banco (soma/média/derivada
     // conforme o tipo — supabase/migrations/202607210010): sem corte de
     // linhas, porque o resultado tem no máximo 1 linha por indicador ativo.
@@ -69,19 +73,18 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     supabase.from("services").select("id,code,name").eq("active", true).order("name"),
     sectorsQuery,
     collaboratorsQuery,
+    // Nomes de todos (inclusive inativos, como os compostos da planilha) só
+    // para rotular o histórico na exportação; o filtro usa apenas os ativos.
+    supabase.from("collaborators").select("id,canonical_name"),
     targetsQuery,
-    // Linhas brutas ainda alimentam o gráfico de tendência e as quebras por
-    // turno/setor/tipo (não dá para tirar isso de um agregado só por
-    // indicador). Paginado em vez de .limit() fixo: nunca corta em silêncio.
-    fetchAllRows<Record<string, unknown>>((from, to) => {
-      let q = supabase.from("production_metrics").select(METRIC_COLUMNS).gte("record_date", start).lte("record_date", end).order("record_date");
-      if (activeUnitId) q = q.eq("unit_id", activeUnitId);
-      if (serviceFilter) q = q.eq("service_id", serviceFilter);
-      if (sectorFilter) q = q.eq("sector_id", sectorFilter);
-      if (shiftFilter) q = q.eq("shift", shiftFilter);
-      if (collaboratorFilter) q = q.eq("collaborator_id", collaboratorFilter);
-      return q.range(from, to);
-    }),
+    // Gráfico e quebras vêm agregados pelo banco (production_metrics_grouped).
+    // Antes eram ~16 mil linhas brutas por mês (~197 mil em 12 meses) baixadas
+    // só para somar no navegador; as linhas brutas agora só vão para a
+    // exportação, sob demanda.
+    grouped(grain),
+    serviceFilter ? grouped("shift") : emptyGroup,
+    serviceFilter ? grouped("sector") : emptyGroup,
+    serviceFilter ? grouped("sector_type") : emptyGroup,
     shiftFilter ? Promise.resolve([]) : fetchAllRows<Record<string, unknown>>((from, to) => {
       let q = supabase.from("scale_assessment_results").select("scale_type,assessment_date,moment,total,entry_total,improved,sector_id,unit_id").gte("assessment_date", start).lte("assessment_date", end).eq("complete", true);
       if (activeUnitId) q = q.eq("unit_id", activeUnitId);
@@ -91,5 +94,5 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     }),
   ]);
 
-  return <DashboardView totals={totals.data ?? []} previousTotals={previousTotals.data ?? []} metrics={metrics as never} scales={scales as never} services={services.data ?? []} sectors={sectors.data ?? []} collaborators={collaborators.data ?? []} units={units} targets={targets.data ?? []} activeUnitId={activeUnitId} filters={{ ...filters, de: start, ate: end, servico: serviceFilter ?? undefined, setor: sectorFilter ?? undefined, turno: shiftFilter ?? undefined, colaborador: collaboratorFilter ?? undefined }} />;
+  return <DashboardView trend={(trend.data ?? []) as Grouped[]} grain={grain} breakdowns={{ shift: (byShift.data ?? []) as Grouped[], sector: (bySector.data ?? []) as Grouped[], sector_type: (bySectorType.data ?? []) as Grouped[] }} totals={totals.data ?? []} previousTotals={previousTotals.data ?? []} scales={scales as never} services={services.data ?? []} sectors={sectors.data ?? []} collaborators={collaborators.data ?? []} collaboratorNames={collaboratorNames.data ?? []} units={units} targets={targets.data ?? []} activeUnitId={activeUnitId} filters={{ ...filters, de: start, ate: end, servico: serviceFilter ?? undefined, setor: sectorFilter ?? undefined, turno: shiftFilter ?? undefined, colaborador: collaboratorFilter ?? undefined }} />;
 }

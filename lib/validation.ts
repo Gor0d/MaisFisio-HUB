@@ -27,7 +27,8 @@ export const productionSchema = z.object({
   shift: z.enum(["MANHÃ", "TARDE", "NOITE"]),
   sector_id: z.uuid("Selecione o setor."),
   sector_type: optionalSectorType,
-  collaborator_id: z.uuid("Selecione o colaborador."),
+  // Equipe do turno: um lançamento por dia/turno/setor com todos que trabalharam.
+  collaborator_ids: z.array(z.uuid()).min(1, "Selecione ao menos um colaborador.").max(20, "No máximo 20 colaboradores por lançamento."),
   context: z.enum(["geral", "uti", "enfermaria", "ambulatorio"]),
   notes: z.string().max(2000).optional(),
   values: z.array(z.object({ indicator_id: z.uuid(), value: z.string() })),

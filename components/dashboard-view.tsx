@@ -1,17 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { Activity, ArrowDownRight, ArrowUpRight, CalendarDays, Download, FileSpreadsheet, Minus, TrendingUp, UsersRound } from "lucide-react";
+import { Activity, ArrowDownRight, ArrowUpRight, CalendarDays, Download, FileSpreadsheet, LoaderCircle, Minus, TrendingUp, UsersRound } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { NamedDateField } from "@/components/ui/date-field";
 import { Select } from "@/components/ui/select";
+import { KPI_LABELS, SERVICE_KPIS, SERVICE_ORDER, THEMES } from "@/lib/service-themes";
 import { effectiveTarget, targetSituation, type IndicatorTarget, type TargetSituation } from "@/lib/targets";
+import { createClient } from "@/lib/supabase/client";
+import { fetchAllRows } from "@/lib/supabase/pagination";
 import { ptBRDate, ptBRNumber } from "@/lib/utils";
 
-type Metric = { record_date: string; indicator_code: string; indicator_name: string; kind: string; value: number | string | null; service_id: string; sector_id: string | null; unit_id: string; shift: string | null; sector_type: string | null; collaborator_id: string | null; context: string };
+// Linha bruta só para exportação (buscada sob demanda, nunca no carregamento).
+type Metric = { record_date: string; indicator_code: string; indicator_name: string; kind: string; value: number | string | null; service_id: string; sector_id: string | null; unit_id: string; shift: string | null; sector_type: string | null; collaborator_id: string | null; collaborator_ids?: string[] | null; context: string };
+// Agregado vindo de production_metrics_grouped (por dia/mês ou por dimensão).
+export type Grouped = { bucket: string; indicator_id: string; indicator_code: string; indicator_name: string; kind: string; derived: boolean; total: number | string | null; records: number };
+export type Breakdowns = { shift: Grouped[]; sector: Grouped[]; sector_type: Grouped[] };
 type Total = { indicator_id: string; indicator_code: string; indicator_name: string; kind: string; derived: boolean; total: number | string | null };
 type Scale = { scale_type: string; assessment_date: string; moment: string; total: number; entry_total: number | null; improved: boolean | null };
 type Service = { id: string; code: string; name: string };
@@ -19,43 +28,16 @@ type Collaborator = { id: string; canonical_name: string; service_id: string };
 type Unit = { id: string; name: string };
 
 const scaleNames: Record<string, string> = { barthel: "Barthel", mrc: "MRC", melhoria_uti: "Melhoria UTI" };
-
-// Paleta institucional (fisioterapia usa a família do azul-marinho da marca)
-// validada em scripts/validate_palette.js — todos os checks CVD/contraste
-// passam nesta ordem exata de exibição das abas (SERVICE_ORDER).
-const SERVICE_ORDER = ["fisioterapia", "terapia_ocupacional", "psicologia", "fonoaudiologia", "assistencia_social"];
-const THEMES: Record<string, { accent: string; soft: string }> = {
-  fisioterapia: { accent: "#1d5ab0", soft: "#e7edf7" },
-  terapia_ocupacional: { accent: "#d97706", soft: "#faf0e0" },
-  psicologia: { accent: "#7c3aed", soft: "#f1ebfc" },
-  fonoaudiologia: { accent: "#0891b2", soft: "#e3f2f6" },
-  assistencia_social: { accent: "#db2777", soft: "#fbe9f1" },
-};
 const SERIES_COLORS = ["#1d5ab0", "#d97706", "#0891b2"];
 
-// KPIs de destaque por especialidade (equivalentes aos cartões do B.I. antigo).
-const SERVICE_KPIS: Record<string, string[]> = {
-  fisioterapia: ["fisio_pacientes_prescritos", "fisio_altas", "fisio_obitos", "fisio_taxa_captados"],
-  terapia_ocupacional: ["to_geral_total", "to_enf_atendimentos", "to_enf_altas", "to_amb_individual"],
-  psicologia: ["psi_atendimentos", "psi_admissoes", "psi_familiar", "psi_risco_suicidio"],
-  fonoaudiologia: ["fono_atendimentos", "fono_altas", "fono_melhorias", "fono_broncoaspiracoes"],
-  assistencia_social: ["social_atendimentos", "social_acolhimento", "social_alta", "social_evasoes"],
-};
-const KPI_LABELS: Record<string, string> = {
-  fisio_pacientes_prescritos: "Pacientes Prescritos", fisio_altas: "Altas", fisio_obitos: "Óbitos", fisio_taxa_captados: "Taxa de Captação",
-  to_geral_total: "Atendimentos Gerais", to_enf_atendimentos: "Atendimentos na Enfermaria", to_enf_altas: "Altas da Enfermaria", to_amb_individual: "Atendimentos no Ambulatório",
-  psi_atendimentos: "Atendimentos Realizados", psi_admissoes: "Admissões", psi_familiar: "Atendimento Familiar", psi_risco_suicidio: "Protocolo Risco de Suicídio",
-  fono_atendimentos: "Atendimentos Realizados", fono_altas: "Altas da Fono", fono_melhorias: "Melhorias na Fonoterapia", fono_broncoaspiracoes: "Broncoaspirações",
-  social_atendimentos: "Atendimentos Realizados", social_acolhimento: "Acolhimentos", social_alta: "Altas Hospitalares", social_evasoes: "Evasões",
-};
 
-export function DashboardView({ metrics, totals, previousTotals, scales, services, sectors, collaborators, units, targets, activeUnitId, filters }: { metrics: Metric[]; totals: Total[]; previousTotals: Total[]; scales: Scale[]; services: Service[]; sectors: { id: string; name: string }[]; collaborators: Collaborator[]; units: Unit[]; targets: IndicatorTarget[]; activeUnitId: string | null; filters: Record<string, string | undefined> }) {
+export function DashboardView({ trend, grain, breakdowns, totals, previousTotals, scales, services, sectors, collaborators, collaboratorNames, units, targets, activeUnitId, filters }: { trend: Grouped[]; grain: "day" | "month"; breakdowns: Breakdowns; totals: Total[]; previousTotals: Total[]; scales: Scale[]; services: Service[]; sectors: { id: string; name: string }[]; collaborators: Collaborator[]; collaboratorNames: { id: string; canonical_name: string }[]; units: Unit[]; targets: IndicatorTarget[]; activeUnitId: string | null; filters: Record<string, string | undefined> }) {
   const orderedServices = SERVICE_ORDER.map((code) => services.find((s) => s.code === code)).filter((s): s is Service => Boolean(s));
   const activeService = services.find((s) => s.id === filters.servico);
   const theme = THEMES[activeService?.code ?? ""] ?? THEMES.fisioterapia;
   const sectorName = new Map(sectors.map((s) => [s.id, s.name]));
   const serviceName = new Map(services.map((service) => [service.id, service.name]));
-  const collaboratorName = new Map(collaborators.map((collaborator) => [collaborator.id, collaborator.canonical_name]));
+  const collaboratorName = new Map(collaboratorNames.map((collaborator) => [collaborator.id, collaborator.canonical_name]));
   const unitName = new Map(units.map((unit) => [unit.id, unit.name]));
   const previousByCode = new Map(previousTotals.map((t) => [t.indicator_code, t]));
 
@@ -77,14 +59,16 @@ export function DashboardView({ metrics, totals, previousTotals, scales, service
   const ranked = totals.filter((t) => t.kind !== "taxa" && Number(t.total ?? 0) > 0).sort((a, b) => Number(b.total) - Number(a.total));
   const series = ranked.slice(0, 3);
   const seriesCodes = new Set(series.map((s) => s.indicator_code));
+  // Série já agregada pelo banco (por dia em períodos curtos, por mês nos longos).
   const daily = new Map<string, Record<string, string | number>>();
-  metrics.forEach((metric) => {
-    if (!seriesCodes.has(metric.indicator_code)) return;
-    const day = daily.get(metric.record_date) ?? { date: metric.record_date };
-    day[metric.indicator_name] = Number(day[metric.indicator_name] ?? 0) + Number(metric.value ?? 0);
-    daily.set(metric.record_date, day);
+  trend.forEach((row) => {
+    if (!seriesCodes.has(row.indicator_code)) return;
+    const point = daily.get(row.bucket) ?? { date: row.bucket };
+    point[row.indicator_name] = Number(row.total ?? 0);
+    daily.set(row.bucket, point);
   });
-  const chart = [...daily.values()].sort((a, b) => String(a.date).localeCompare(String(b.date))).map((row) => ({ ...row, label: ptBRDate.format(new Date(`${row.date}T00:00:00Z`)) }));
+  const monthLabel = new Intl.DateTimeFormat("pt-BR", { month: "short", year: "2-digit", timeZone: "UTC" });
+  const chart = [...daily.values()].sort((a, b) => String(a.date).localeCompare(String(b.date))).map((row) => ({ ...row, label: grain === "month" ? monthLabel.format(new Date(`${row.date}-01T00:00:00Z`)) : ptBRDate.format(new Date(`${row.date}T00:00:00Z`)) }));
 
   const exits = scales.filter((s) => s.moment === "saida" && s.improved !== null);
   const improvements = exits.filter((s) => s.improved).length;
@@ -105,49 +89,76 @@ export function DashboardView({ metrics, totals, previousTotals, scales, service
     return { code, label: row?.indicator_name ?? KPI_LABELS[code] ?? code, value: current, kind: row?.kind, delta, situation: targetSituation(current, target) };
   });
   const primaryCode = SERVICE_KPIS[activeService?.code ?? ""]?.[0];
-  const primaryRows = metrics.filter((x) => x.indicator_code === primaryCode);
-  const primaryKind = totals.find((t) => t.indicator_code === primaryCode)?.kind;
-  const primaryLabel = primaryRows[0]?.indicator_name ?? KPI_LABELS[primaryCode ?? ""] ?? "";
+  const primaryLabel = totals.find((t) => t.indicator_code === primaryCode)?.indicator_name ?? KPI_LABELS[primaryCode ?? ""] ?? "";
 
+  // Quebras do indicador principal já agregadas pelo banco (soma, média ou
+  // soma(numerador)/soma(denominador), conforme o tipo — nunca soma de %).
   const byDimension = (key: "shift" | "sector_id" | "sector_type", order?: string[]) => {
-    const sums = new Map<string, number>();
-    const counts = new Map<string, number>();
-    primaryRows.forEach((x) => { const raw = x[key]; if (!raw) return; const label = key === "sector_id" ? sectorName.get(raw) ?? "Outro" : raw; sums.set(label, (sums.get(label) ?? 0) + Number(x.value ?? 0)); counts.set(label, (counts.get(label) ?? 0) + 1); });
-    // Taxa: média por grupo (nunca soma de percentuais); contagem: soma normal.
-    const entries = [...sums.entries()].map(([label, sum]) => ({ label, value: primaryKind === "taxa" ? sum / (counts.get(label) ?? 1) : sum }));
+    const source = key === "sector_id" ? breakdowns.sector : breakdowns[key];
+    const entries = source
+      .filter((row) => row.indicator_code === primaryCode && row.bucket)
+      .map((row) => ({ label: key === "sector_id" ? sectorName.get(row.bucket) ?? "Outro" : row.bucket, value: Number(row.total ?? 0) }));
     return order ? order.map((label) => entries.find((e) => e.label === label) ?? { label, value: 0 }).filter((e) => e.value > 0 || entries.some((x) => x.label === e.label)) : entries.sort((a, b) => b.value - a.value);
   };
 
-  const exportRows = metrics.map((metric) => ({
+  const [exporting, setExporting] = useState(false);
+  // Linhas brutas só quando alguém exporta: carregar tudo na abertura do
+  // dashboard custava ~14 s em 12 meses (~197 mil linhas).
+  async function loadExportRows() {
+    const supabase = createClient();
+    const metrics = await fetchAllRows<Metric>((from, to) => {
+      let q = supabase.from("production_metrics").select("record_date,indicator_code,indicator_name,kind,value,service_id,sector_id,unit_id,shift,sector_type,collaborator_id,collaborator_ids,context").gte("record_date", filters.de!).lte("record_date", filters.ate!).order("record_date");
+      if (activeUnitId) q = q.eq("unit_id", activeUnitId);
+      if (filters.servico) q = q.eq("service_id", filters.servico);
+      if (filters.setor) q = q.eq("sector_id", filters.setor);
+      if (filters.turno) q = q.eq("shift", filters.turno);
+      if (filters.colaborador) q = q.contains("collaborator_ids", [filters.colaborador]);
+      return q.range(from, to);
+    });
+    return metrics.map((metric) => ({
     Unidade: unitName.get(metric.unit_id) ?? "Todas as unidades",
     Data: metric.record_date,
     Serviço: serviceName.get(metric.service_id) ?? "",
     Turno: metric.shift ?? "",
     Setor: sectorName.get(metric.sector_id ?? "") ?? "",
     "Tipo de setor": metric.sector_type ?? "",
-    Colaborador: collaboratorName.get(metric.collaborator_id ?? "") ?? "",
+    Colaborador: (metric.collaborator_ids?.length ? metric.collaborator_ids : [metric.collaborator_id]).map((id) => collaboratorName.get(id ?? "") ?? "").filter(Boolean).join(", "),
     Contexto: metric.context,
     "Código do indicador": metric.indicator_code,
     Indicador: metric.indicator_name,
     Tipo: metric.kind,
     Valor: metric.value ?? "",
   }));
+  }
 
-  function exportCsv() {
+  async function withExportRows(run: (rows: Awaited<ReturnType<typeof loadExportRows>>) => Promise<void> | void) {
+    setExporting(true);
+    try {
+      const rows = await loadExportRows();
+      if (!rows.length) { toast.info("Não há lançamentos no período e filtros escolhidos."); return; }
+      await run(rows);
+    } catch {
+      toast.error("Não foi possível gerar a exportação. Tente um período menor.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  const exportCsv = () => withExportRows((exportRows) => {
     const headers = Object.keys(exportRows[0] ?? {});
     const rows = [headers, ...exportRows.map((row) => headers.map((header) => row[header as keyof typeof row]))];
     const csv = "\uFEFF" + rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(";")).join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a"); link.href = url; link.download = `maisfisio-${filters.de}-${filters.ate}.csv`; link.click(); URL.revokeObjectURL(url);
-  }
+  });
 
-  async function exportExcel() {
+  const exportExcel = () => withExportRows(async (exportRows) => {
     const XLSX = await import("xlsx");
     const worksheet = XLSX.utils.json_to_sheet(exportRows);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Produção assistencial");
     XLSX.writeFile(workbook, `maisfisio-${filters.de}-${filters.ate}.xlsx`, { compression: true });
-  }
+  });
 
   const showScales = !activeService || activeService.code === "fisioterapia";
 
@@ -155,7 +166,7 @@ export function DashboardView({ metrics, totals, previousTotals, scales, service
     <div className="grid gap-6">
       <header className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
         <div><h1 className="page-title">{activeService ? activeService.name : "Visão geral"}</h1><p className="page-description">{activeService ? `Produção de ${activeService.name} no período.` : "Produção assistencial e evolução clínica no período."}</p></div>
-        <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={exportCsv} disabled={!metrics.length}><Download className="size-4" />Exportar CSV</Button><Button variant="outline" onClick={exportExcel} disabled={!metrics.length}><FileSpreadsheet className="size-4" />Exportar Excel</Button></div>
+        <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={exportCsv} disabled={exporting}>{exporting ? <LoaderCircle className="size-4 animate-spin" /> : <Download className="size-4" />}Exportar CSV</Button><Button variant="outline" onClick={exportExcel} disabled={exporting}>{exporting ? <LoaderCircle className="size-4 animate-spin" /> : <FileSpreadsheet className="size-4" />}Exportar Excel</Button></div>
       </header>
 
       <nav className="flex gap-2 overflow-x-auto pb-1" aria-label="Especialidades">
@@ -191,7 +202,7 @@ export function DashboardView({ metrics, totals, previousTotals, scales, service
       )}
 
       <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
-        <Card><CardHeader><CardTitle>Evolução da produção</CardTitle><CardDescription>Três indicadores com maior volume no período.</CardDescription></CardHeader><CardContent>
+        <Card><CardHeader><CardTitle>Evolução da produção</CardTitle><CardDescription>Três indicadores com maior volume no período{grain === "month" ? ", por mês" : ", por dia"}.</CardDescription></CardHeader><CardContent>
           {chart.length ? <div className="h-[330px] w-full"><ResponsiveContainer><AreaChart data={chart} margin={{ left: -15, right: 8 }}><defs>{SERIES_COLORS.map((color, i) => <linearGradient key={color} id={`fill-${i}`} x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={color} stopOpacity={0.28}/><stop offset="95%" stopColor={color} stopOpacity={0}/></linearGradient>)}</defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e4ebe8"/><XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} axisLine={false}/><YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false}/><Tooltip /><Legend />{series.map((item, i) => <Area key={item.indicator_code} type="monotone" dataKey={item.indicator_name} stroke={SERIES_COLORS[i]} fill={`url(#fill-${i})`} strokeWidth={2} />)}</AreaChart></ResponsiveContainer></div> : <Empty />}
         </CardContent></Card>
 

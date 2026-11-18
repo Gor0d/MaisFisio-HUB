@@ -11,6 +11,10 @@ const dryRun = args.has("--dry-run") || !process.env.SUPABASE_SERVICE_ROLE_KEY;
 const fileArgIndex = process.argv.indexOf("--file");
 const inputFile = path.resolve(fileArgIndex >= 0 ? process.argv[fileArgIndex + 1] : DEFAULT_FILE);
 const reportDir = path.resolve("reports");
+// --from AAAA-MM-DD: importa só registros a partir dessa data (ex.: carga parcial do ano corrente).
+const fromArgIndex = process.argv.indexOf("--from");
+const fromDate = fromArgIndex >= 0 ? process.argv[fromArgIndex + 1] : null;
+if (fromDate && !/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) throw new Error("--from deve estar no formato AAAA-MM-DD");
 
 type Cell = string | number | boolean | Date | null | undefined;
 type LogicalValue = { code: string; value: number | string };
@@ -191,6 +195,9 @@ async function upload(production: ProductionImport[], scales: ScaleImport[]): Pr
   await batches(production, 200, async (batch) => {
     const records = batch.map((x) => ({ id: stableUuid(`production:${unitId}:${x.service}:${x.date}:${x.shift}:${x.sector}:${normalizeKey(x.collaborator)}:${x.context}`), unit_id: unitId, service_id: serviceMap.get(x.service), record_date: x.date, shift: x.shift, sector_id: sectorMap.get(x.sector), sector_type: x.sectorType, collaborator_id: collaboratorMap.get(`${serviceMap.get(x.service)}:${normalizeKey(x.collaborator)}`), context: x.context, created_by: actor }));
     const { error } = await client.from("production_records").upsert(records, { onConflict: "id" }); if (error) throw error;
+    // Vínculo do colaborador também na tabela de vários colaboradores (migração 202611160019).
+    const links = records.filter((r) => r.collaborator_id).map((r) => ({ record_id: r.id, collaborator_id: r.collaborator_id, position: 1 }));
+    if (links.length) { const linkResult = await client.from("production_record_collaborators").upsert(links, { onConflict: "record_id,collaborator_id" }); if (linkResult.error) throw linkResult.error; }
     const values = batch.flatMap((x, index) => x.values.map((v) => ({ record_id: records[index].id, indicator_id: indicatorMap.get(v.code), numeric_value: typeof v.value === "number" ? v.value : null, text_value: typeof v.value === "string" ? v.value : null })));
     if (values.length) { const result = await client.from("production_values").upsert(values, { onConflict: "record_id,indicator_id" }); if (result.error) throw result.error; }
   });
@@ -227,10 +234,11 @@ async function upload(production: ProductionImport[], scales: ScaleImport[]): Pr
 }
 
 async function main() {
-  console.log(`Lendo ${inputFile} em modo ${dryRun ? "validação" : "importação"}...`);
+  console.log(`Lendo ${inputFile} em modo ${dryRun ? "validação" : "importação"}${fromDate ? ` a partir de ${fromDate}` : ""}...`);
   const workbook = XLSX.readFile(inputFile, { cellDates: false, raw: true });
-  const production = dedupeBy(productionSheets.flatMap((config) => parseProductionSheet(workbook, config)), (x) => `${x.service}|${x.date}|${x.shift}|${x.sector}|${normalizeKey(x.collaborator)}|${x.context}`, "Lançamento");
-  const scaleGroups = (["barthel", "mrc", "melhoria_uti"] as const).map((type) => [type, dedupeBy(parseScaleSheet(workbook, type), (x) => `${x.scaleType}|${x.recordNumber}|${x.date}|${x.moment}|${x.attendanceNumber ?? ""}`, "Evento de avaliação")] as const); const scales = scaleGroups.flatMap(([, rows]) => rows);
+  const inRange = (date: string) => !fromDate || date >= fromDate;
+  const production = dedupeBy(productionSheets.flatMap((config) => parseProductionSheet(workbook, config)).filter((x) => inRange(x.date)), (x) => `${x.service}|${x.date}|${x.shift}|${x.sector}|${normalizeKey(x.collaborator)}|${x.context}`, "Lançamento");
+  const scaleGroups = (["barthel", "mrc", "melhoria_uti"] as const).map((type) => [type, dedupeBy(parseScaleSheet(workbook, type).filter((x) => inRange(x.date)), (x) => `${x.scaleType}|${x.recordNumber}|${x.date}|${x.moment}|${x.attendanceNumber ?? ""}`, "Evento de avaliação")] as const); const scales = scaleGroups.flatMap(([, rows]) => rows);
   // Em modo real, o catálogo de opções da escala só é conhecido depois de
   // consultar o banco (dentro de upload()) — por isso o off-catalog só é
   // detectável de fato durante upload(). Em dry-run (sem conexão), o
@@ -242,7 +250,7 @@ async function main() {
   const scalesAcceptedTotal = uploadResult ? uploadResult.scalesAccepted.length : scales.length;
   const physicalRows = Object.fromEntries([...productionSheets.map((config) => { const range = XLSX.utils.decode_range(workbook.Sheets[config.sheet]["!ref"] ?? "A1"); return [config.sheet.trim(), range.e.r - config.header]; }), ...(["Escala de Barthel", "MRC - TABELA", "Melhoria Funcional da UTI - Tab"] as const).map((sheet) => { const range = XLSX.utils.decode_range(workbook.Sheets[sheet]["!ref"] ?? "A1"); return [sheet, range.e.r]; })]);
   const report = {
-    generatedAt: new Date().toISOString(), source: inputFile, mode: dryRun ? "dry-run" : "import",
+    generatedAt: new Date().toISOString(), source: inputFile, mode: dryRun ? "dry-run" : "import", from: fromDate,
     ...(dryRun ? { aviso: "Modo dry-run: a contagem de escalas não passou pelo filtro de opções fora do catálogo (só é possível consultando o banco). Rode a importação real para o número definitivo, que fica registrado neste mesmo relatório." } : {}),
     summary: { physicalRows, production: Object.fromEntries(productionSheets.map((x) => [x.sheet.trim(), production.filter((row) => row.source === x.sheet).length])), scales: acceptedScalesByType, totalAccepted: production.length + scalesAcceptedTotal, corrected: issues.filter((x) => x.level === "corrigida").length, review: issues.filter((x) => x.level === "revisao").length, rejected: issues.filter((x) => x.level === "rejeitada").length },
     issues,

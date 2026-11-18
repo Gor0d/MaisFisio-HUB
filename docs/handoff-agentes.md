@@ -165,3 +165,36 @@ Mesclei `main` (commit `c6ead1d`, correção de segurança de 12/11) nesta branc
 Suíte na branch mesclada: lint, typecheck, **44/44 testes** e build (com `/qualidade`) aprovados. **Produção ainda roda o Next vulnerável** até o push/deploy.
 
 Observação para o deploy em VPS: o estágio `runner` do `Dockerfile` roda como root; adicionar `USER node` (e `chown` do `.next`) antes de subir.
+
+### 16/11/2026 — Claude → próxima sessão (outro PC) / Codex
+
+**Já em produção (`main`, Vercel):** correção de segurança do Next (15.5.29), acesso por senha provisória com troca obrigatória (E2E `e2e/provisional-password.spec.ts`), nova tela de login sem nome de hospital + logo corrigida + `/selecionar-unidade` após a senha.
+
+**Pronto, mas NÃO publicado — branch `feat/colaboradores-painel-mensal` (commit `e83c7c5`):**
+- Vários colaboradores por lançamento (`production_record_collaborators`), um lançamento por serviço/dia/turno/setor/contexto, nomes compostos da planilha desativados das listas (histórico intacto).
+- Dashboard com agregados do banco (`production_metrics_grouped`) em vez de linhas brutas; exportação sob demanda.
+- Painel mensal de B.I. em `/painel-mensal` (12 meses, meta, tabela, modo apresentação, impressão).
+- Suíte: lint, typecheck, 39/39 testes (PGlite). E2E ajustado, mas ainda não rodado contra produção com a migração.
+
+**Ordem obrigatória para publicar (não inverter):**
+1. Aplicar no SQL Editor do Supabase, nesta ordem, `supabase/migrations/202611160019_production_multi_collaborators.sql` e `supabase/migrations/202611160020_metrics_grouped_performance.sql`, depois registrar:
+   `insert into supabase_migrations.schema_migrations (version, name) values ('202611160019','production_multi_collaborators'), ('202611160020','metrics_grouped_performance') on conflict do nothing;`
+   A migração é compatível com o código atual em produção (o RPC continua aceitando `collaborator_id` único).
+2. Só então mesclar a branch no `main` e fazer push (deploy automático). Antes disso o formulário novo envia `collaborator_ids` para um RPC que não os conhece e o lançamento falha.
+3. `npm run test:e2e` (precisa de `.env.local` de produção) e `npx tsx scripts/perf-check.mts "DEPOIS"`.
+
+**Linha de base de desempenho (produção, 16/11, antes da migração):** totais ~8,3 s (30 dias ou 12 meses); linhas brutas do dashboard 16 mil/30 dias e 197 mil/12 meses; tela do dashboard 2,1 s (padrão) e 14,3 s (12 meses); lançamento 1,7 s; escalas 1,7 s; relatórios 1,3 s; login→dashboard 3,3 s.
+
+**Pendências abertas:**
+- Supabase Auth → URL Configuration: Site URL ainda é `http://localhost:3000` (link de "esqueci minha senha" cai no localhost). Trocar para `https://mais-fisio-hub.vercel.app` e incluir `https://mais-fisio-hub.vercel.app/**` em Redirect URLs.
+- Prints das telas e slide "Telas do sistema" na apresentação (https://claude.ai/artifact/L1f77ziSMTwNTEu4dUiYQd), depois do deploy acima.
+- Apresentação: slides 12–14 já com R$ 4.500 de implantação + R$ 500/mês; confirmar o valor/hora entre colchetes ([R$ 150]) e revisar os slides de infraestrutura/segurança/fases, que ainda podem citar valores ou promessas antigos.
+- Branch `feat/qualidade-interact-docker` (módulo Qualidade) segue separada; mesclar `main` nela antes de retomar. Sua migração `202611070018` também não está em produção.
+- A chave `service_role` de produção foi colada no chat em 15/11: rotacionar quando possível (ou na migração para a VPS, que gera chaves novas).
+
+### 18/11/2026 — Claude (demonstração para a MaisFisio)
+
+- Branch `feat/qualidade-interact-docker` atualizada com `origin/main` e com `origin/feat/colaboradores-painel-mensal` (conflitos só em `app-shell.tsx` — ícones — e neste arquivo). Lint, typecheck e 55 testes ok.
+- **Achado:** sem as migrações `202611160019`/`202611160020`, os totais de produção estouram o `statement_timeout` de 8 s do papel `authenticated` com só 11 meses de um hospital e o dashboard mostra "Produção registrada 0" (sem erro visível). Com elas: dashboard 10 s → 1,6 s; relatórios 9 s → 1,2 s. Reforça a ordem do handoff de 16/11 para produção.
+- `scripts/import-xlsx.ts`: nova opção `--from AAAA-MM-DD` (carga parcial) e gravação também em `production_record_collaborators`.
+- Ambiente de demonstração **local** (stack `deploy/`, http://localhost:8088): 2026 importado da planilha (01/01–18/11): 11.405 lançamentos, 165.852 valores, 4.954 Barthel, 5.073 MRC, 157 colaboradores; 35 Barthel rejeitadas por opção fora do catálogo (ver `reports/`). Nada foi enviado à produção.

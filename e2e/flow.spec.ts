@@ -54,7 +54,13 @@ test.describe("Fluxo principal: login → lançamento → Barthel entrada/saída
 
     await test.step("lançamento de produção (Fisioterapia)", async () => {
       await page.goto("/lancamento");
-      await field(page, "Colaborador(a)").locator("select").selectOption({ label: state.collaboratorName });
+      // Data antiga e fixa: um lançamento por dia/turno/setor, então o teste
+      // não pode colidir com lançamentos reais de hoje (nem bloqueá-los).
+      await field(page, "Data").locator("input").fill(isMobile ? "02/01/2001" : "01/01/2001");
+      await page.getByRole("combobox", { name: "Buscar colaborador" }).fill(state.collaboratorName);
+      await page.getByRole("option", { name: state.collaboratorName }).click();
+      await expect(page.getByRole("button", { name: `Remover ${state.collaboratorName}` })).toBeVisible();
+      await page.keyboard.press("Escape");
       await field(page, "Turno").locator("select").selectOption(shift);
       await field(page, "Setor").locator("select").selectOption({ label: state.sectorName });
       await page.getByLabel(state.indicatorName).fill("3");
@@ -122,6 +128,8 @@ test.describe("Fluxo principal: login → lançamento → Barthel entrada/saída
         .eq("indicator_id", state.indicatorId)
         .single();
       expect(Number(value?.numeric_value)).toBe(3);
+      const { data: team } = await admin.from("production_record_collaborators").select("collaborator_id").eq("record_id", record!.id);
+      expect(team?.map((row) => row.collaborator_id)).toEqual([state.collaboratorId]);
 
       // scale_assessment_results filtra por is_member_of(unit_id), que lê
       // auth.uid() — vazio para o client de service_role, então a view não
