@@ -44,3 +44,6 @@ Thumbs.db
 # backups e segredos de produção
 deploy/backups/
 deploy/.env
+
+# dependências do servidor MCP
+/mcp/node_modules/

@@ -198,3 +198,10 @@ Observação para o deploy em VPS: o estágio `runner` do `Dockerfile` roda como
 - **Achado:** sem as migrações `202611160019`/`202611160020`, os totais de produção estouram o `statement_timeout` de 8 s do papel `authenticated` com só 11 meses de um hospital e o dashboard mostra "Produção registrada 0" (sem erro visível). Com elas: dashboard 10 s → 1,6 s; relatórios 9 s → 1,2 s. Reforça a ordem do handoff de 16/11 para produção.
 - `scripts/import-xlsx.ts`: nova opção `--from AAAA-MM-DD` (carga parcial) e gravação também em `production_record_collaborators`.
 - Ambiente de demonstração **local** (stack `deploy/`, http://localhost:8088): 2026 importado da planilha (01/01–18/11): 11.405 lançamentos, 165.852 valores, 4.954 Barthel, 5.073 MRC, 157 colaboradores; 35 Barthel rejeitadas por opção fora do catálogo (ver `reports/`). Nada foi enviado à produção.
+
+### 18/11/2026 (tarde) — Claude
+
+- **Telas Qualidade e Administração travando (~4,5–5 s, sem carregamento visível):** migração `202611180021_quality_admin_performance.sql` (cálculo de qualidade lê o período uma vez; `is_manager()` da auditoria avaliado uma vez + índice por data) e `app/(protected)/loading.tsx`. Medido local: ~0,9 s. **Produção precisa da 021 depois da 019/020.** Obs.: `quality_indicator_results` agora é security definer e devolve vazio para quem não é admin/matriz logado (inclusive `postgres` no SQL Editor).
+- **Relatórios:** PDF com identidade visual e Excel (Resumo, Produção com filtro, Escalas), agrupados por serviço com mês anterior, variação e metas. Modelo em `lib/report-model.ts` (testado), geração em `lib/report-export.ts` (`jspdf-autotable`).
+- **MCP** em `mcp/` (ver `mcp/README.md`): entra como usuário (anon + e-mail/senha, nunca service_role); cria/atualiza/calcula indicadores de qualidade e lê totais de produção. Testado ponta a ponta no ambiente local, inclusive recusa para colaborador/coordenador.
+- **Indicadores de qualidade de demonstração** (12, fórmulas provisórias) existem só no banco local.
