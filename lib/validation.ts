@@ -57,8 +57,9 @@ export const scaleAssessmentSchema = z.object({
   notes: z.string().max(2000).optional(),
   answers: z.array(z.object({ item_id: z.uuid(), option_id: z.uuid() })).min(1),
 }).superRefine((data, ctx) => {
-  // A escala MRC tem colaborador e número de atendimento na planilha de
-  // origem; Barthel e Melhoria UTI não têm esse campo, então ficam opcionais.
+  // MRC e Barthel identificam quem avaliou (o Barthel passou a exigir em
+  // 19/11/2026; o histórico importado da planilha não tem esse dado).
+  if (data.scale_type === "barthel" && !data.collaborator_id) ctx.addIssue({ code: "custom", path: ["collaborator_id"], message: "Informe quem realizou a avaliação." });
   if (data.scale_type === "mrc") {
     if (!data.collaborator_id) ctx.addIssue({ code: "custom", path: ["collaborator_id"], message: "A escala MRC exige o colaborador responsável." });
     if (!data.attendance_number?.trim()) ctx.addIssue({ code: "custom", path: ["attendance_number"], message: "A escala MRC exige o número do atendimento." });

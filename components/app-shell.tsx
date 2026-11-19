@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, BarChart3, Building2, CalendarRange, ClipboardPlus, FileBarChart, LogOut, Menu, Settings, ShieldCheck, X } from "lucide-react";
+import { Activity, BarChart3, Building2, CalendarRange, ChartNoAxesCombined, ClipboardPlus, FileBarChart, History, LogOut, Menu, Settings, ShieldCheck, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { logout, setActiveUnit } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -18,17 +18,29 @@ const mainNav = [
   { href: "/painel-mensal", label: "Painel mensal", icon: CalendarRange },
   { href: "/relatorios", label: "Relatórios", icon: FileBarChart },
 ];
+// Só no menu lateral (a barra inferior do celular comporta 5 itens).
+const scaleBiNav = { href: "/escalas/painel", label: "B.I. das escalas", icon: ChartNoAxesCombined };
+
+// Item ativo: o de caminho mais específico (/escalas/painel não acende /escalas).
+function isActive(pathname: string, href: string, all: string[]) {
+  const matches = (h: string) => pathname === h || pathname.startsWith(`${h}/`);
+  if (!matches(href)) return false;
+  return !all.some((other) => other !== href && other.startsWith(`${href}/`) && matches(other));
+}
 
 export function AppShell({ profile, units, activeUnitId, children }: { profile: Profile; units: Unit[]; activeUnitId: string | null; children: React.ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const unitFormRef = useRef<HTMLFormElement>(null);
   const canSeeQuality = profile.role === "super_admin" || profile.role === "admin";
-  const nav = profile.role === "colaborador" ? mainNav : [
-    ...mainNav,
+  const baseNav = [...mainNav.slice(0, 3), scaleBiNav, ...mainNav.slice(3)];
+  const nav = profile.role === "colaborador" ? baseNav : [
+    ...baseNav,
     ...(canSeeQuality ? [{ href: "/qualidade", label: "Qualidade (Interact)", icon: ShieldCheck }] : []),
+    ...(canSeeQuality ? [{ href: "/auditoria", label: "Auditoria", icon: History }] : []),
     { href: "/admin", label: "Administração", icon: Settings },
   ];
+  const navHrefs = nav.map((item) => item.href);
 
   const UnitSwitcher = () => units.length === 0 ? null : (
     <form ref={unitFormRef} action={setActiveUnit} className="border-b px-4 py-3">
@@ -51,7 +63,7 @@ export function AppShell({ profile, units, activeUnitId, children }: { profile: 
       <UnitSwitcher />
       <nav className="flex-1 space-y-1 p-3">
         {nav.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(`${href}/`);
+          const active = isActive(pathname, href, navHrefs);
           return <Link key={href} href={href} onClick={() => setOpen(false)} className={cn("flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors", active ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground")}><Icon className="size-[18px]" />{label}</Link>;
         })}
       </nav>
@@ -78,7 +90,7 @@ export function AppShell({ profile, units, activeUnitId, children }: { profile: 
         <main className="mx-auto w-full max-w-[1500px] p-4 pb-24 sm:p-6 lg:p-8">{children}</main>
       </div>
       <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t bg-card/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden print:hidden">
-        {mainNav.map(({ href, label, icon: Icon }) => { const active = pathname === href || pathname.startsWith(`${href}/`); return <Link key={href} href={href} className={cn("flex min-h-16 flex-col items-center justify-center gap-1 text-[10px] font-medium", active ? "text-primary" : "text-muted-foreground")}><Icon className="size-5" />{label.split(" ")[0]}</Link>; })}
+        {mainNav.map(({ href, label, icon: Icon }) => { const active = isActive(pathname, href, navHrefs) || (href === "/escalas" && pathname.startsWith("/escalas/")); return <Link key={href} href={href} className={cn("flex min-h-16 flex-col items-center justify-center gap-1 text-[10px] font-medium", active ? "text-primary" : "text-muted-foreground")}><Icon className="size-5" />{label.split(" ")[0]}</Link>; })}
       </nav>
     </div>
   );

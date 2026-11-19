@@ -41,10 +41,6 @@ export default async function AdminPage() {
   const visibleSectorIds = new Set(visibleSectors.map((sector) => sector.id));
   const visibleTargets = (targets.data ?? []).filter((item) =>
     !activeUnitId || item.unit_id === null || item.unit_id === activeUnitId);
-  const audit = await supabase.rpc("admin_audit_logs", {
-    p_unit: activeUnitId,
-    p_limit: 100,
-  });
 
-  return <AdminView role={profile.role} currentUserId={userId!} currentServiceId={profile.service_id} units={units} activeUnitId={activeUnitId} services={services.data ?? []} profiles={visibleProfiles} profileUnits={allProfileUnits} collaborators={visibleCollaborators} collaboratorUnits={allCollaboratorUnits} indicators={indicators.data ?? []} sectors={visibleSectors} serviceSectors={(serviceSectors.data ?? []).filter((link) => visibleSectorIds.has(link.sector_id))} targets={visibleTargets} audit={audit.data ?? []} />;
+  return <AdminView role={profile.role} currentUserId={userId!} currentServiceId={profile.service_id} units={units} activeUnitId={activeUnitId} services={services.data ?? []} profiles={visibleProfiles} profileUnits={allProfileUnits} collaborators={visibleCollaborators} collaboratorUnits={allCollaboratorUnits} indicators={indicators.data ?? []} sectors={visibleSectors} serviceSectors={(serviceSectors.data ?? []).filter((link) => visibleSectorIds.has(link.sector_id))} targets={visibleTargets} />;
 }

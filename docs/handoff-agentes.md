@@ -205,3 +205,24 @@ Observação para o deploy em VPS: o estágio `runner` do `Dockerfile` roda como
 - **Relatórios:** PDF com identidade visual e Excel (Resumo, Produção com filtro, Escalas), agrupados por serviço com mês anterior, variação e metas. Modelo em `lib/report-model.ts` (testado), geração em `lib/report-export.ts` (`jspdf-autotable`).
 - **MCP** em `mcp/` (ver `mcp/README.md`): entra como usuário (anon + e-mail/senha, nunca service_role); cria/atualiza/calcula indicadores de qualidade e lê totais de produção. Testado ponta a ponta no ambiente local, inclusive recusa para colaborador/coordenador.
 - **Indicadores de qualidade de demonstração** (12, fórmulas provisórias) existem só no banco local.
+
+### 19/11/2026 — Claude (auditoria e B.I. das escalas)
+
+- Migração `202611190022_audit_log_and_scale_bi.sql` (aplicar **depois da 021**). A trilha de auditoria agora é exclusiva de admin e matriz, inclusive na política de `audit_logs`, e `admin_audit_logs` foi revogada.
+- Contém também:
+  - `audit_logs.unit_id` gravado pelo gatilho, com backfill e índice.
+  - Novas tabelas auditadas: unidades, setores, catálogo de indicadores, setores por serviço, acesso de usuário à unidade, vínculo de colaborador à unidade, e criação e exclusão de perfis.
+  - RPCs `audit_log_search` (paginada e filtrável, com antes e depois), `audit_access_log` (entradas, saídas e senha vindas de `auth.audit_log_entries`) e `scale_bi` (indicadores da escala em uma ida ao banco).
+- Telas:
+  - `/auditoria`, para gestores. Tem abas Alterações e Acessos, filtros, detalhe campo a campo e Excel com até 5 mil linhas.
+  - A antiga aba "Auditoria" da Administração virou um link para `/auditoria`; `admin_audit_logs` continua no banco, mas não é mais usada.
+  - `/escalas/painel`, o B.I. por escala. Mostra KPIs, mês a mês, desfecho, faixas clínicas, mudança de faixa, desempenho por item, quebra por setor e por profissional, além de Excel.
+- Regras puras em `lib/audit.ts` e `lib/scale-bi.ts`. Testes em `tests/audit-bi*.test.ts`: 75 testes no total, todos passando.
+- Faixas MRC: <36 é fraqueza grave e 36–47 é fraqueza adquirida. As faixas da Melhoria UTI são provisórias (terços de 33): validar com a equipe.
+- As avaliações de Barthel importadas não têm profissional, porque a planilha não tem a coluna. Nesse caso o quadro "por profissional" fica oculto.
+- O formulário do Barthel passou a exigir "Avaliado por", já preenchido com o colaborador ligado ao usuário. A exigência é só no app; o banco não obriga, para não quebrar a reimportação do histórico.
+- Migração `202611190023_scale_data_quality.sql` (depois da 022):
+  - `scale_data_quality` lista entradas sem saída (recentes até 30 dias ou antigas) e saídas sem entrada, com motivo provável: outro atendimento, entrada incompleta, entrada posterior ou sem entrada.
+  - `admin_correct_scale_assessment` corrige data, momento, atendimento, setor ou profissional, ou exclui. Exige motivo, que é anexado às observações; a mudança fica na auditoria.
+  - As duas são só para admin e matriz. Na tela, aparecem na seção "Qualidade dos registros" do B.I.
+- Barthel 2026 no ambiente local: 508 entradas sem saída (422 há mais de 30 dias) e 439 saídas sem entrada.

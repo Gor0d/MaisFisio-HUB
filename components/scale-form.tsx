@@ -32,9 +32,9 @@ type EntryInfo =
   | { status: "no_entry"; initials: string }
   | { status: "found"; initials: string; total: number; date: string };
 
-export function ScaleForm({ type, units, defaultUnitId, items, sectors, collaborators, collaboratorUnits }: { type: ScaleType; units: Unit[]; defaultUnitId?: string; items: ScaleItem[]; sectors: Sector[]; collaborators: Collaborator[]; collaboratorUnits: CollaboratorUnit[] }) {
+export function ScaleForm({ type, units, defaultUnitId, items, sectors, collaborators, collaboratorUnits, currentCollaboratorId }: { type: ScaleType; units: Unit[]; defaultUnitId?: string; items: ScaleItem[]; sectors: Sector[]; collaborators: Collaborator[]; collaboratorUnits: CollaboratorUnit[]; currentCollaboratorId?: string | null }) {
   const [step, setStep] = useState(1);
-  const form = useForm<InputValues, unknown, Values>({ resolver: zodResolver(scaleAssessmentSchema), defaultValues: { unit_id: defaultUnitId, scale_type: type, initials: "", record_number: "", assessment_date: todayISO(), moment: "entrada", sector_id: "", attendance_number: "", cid: "", notes: "", answers: items.map((item) => ({ item_id: item.id, option_id: "" })) } });
+  const form = useForm<InputValues, unknown, Values>({ resolver: zodResolver(scaleAssessmentSchema), defaultValues: { unit_id: defaultUnitId, scale_type: type, ...(currentCollaboratorId ? { collaborator_id: currentCollaboratorId } : {}), initials: "", record_number: "", assessment_date: todayISO(), moment: "entrada", sector_id: "", attendance_number: "", cid: "", notes: "", answers: items.map((item) => ({ item_id: item.id, option_id: "" })) } });
   const unitId = form.watch("unit_id");
   const unitCollaboratorIds = useMemo(() => new Set(collaboratorUnits.filter((x) => x.unit_id === unitId).map((x) => x.collaborator_id)), [collaboratorUnits, unitId]);
   // Sem useMemo: o watch do react-hook-form devolve a MESMA referência de array
@@ -64,6 +64,7 @@ export function ScaleForm({ type, units, defaultUnitId, items, sectors, collabor
   async function next() {
     const fields: (keyof InputValues)[] = ["initials", "record_number", "assessment_date", "moment", "sector_id"];
     if (type === "mrc") fields.push("collaborator_id", "attendance_number");
+    if (type === "barthel") fields.push("collaborator_id");
     const ok = await form.trigger(fields); if (ok) { setStep(2); window.scrollTo({ top: 0, behavior: "smooth" }); }
   }
   async function submit(values: Values) {
@@ -86,7 +87,7 @@ export function ScaleForm({ type, units, defaultUnitId, items, sectors, collabor
       <div className="field col-span-4"><Label>Setor</Label><Select {...form.register("sector_id")}><option value="">Selecione</option>{sectors.filter((x) => x.unit_id === unitId && (type !== "melhoria_uti" || x.context === "uti")).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select><FieldError text={form.formState.errors.sector_id?.message} /></div>
       <div className="field col-span-4"><Label>Tipo de setor</Label><Select {...form.register("sector_type")}><option value="">Não informado</option><option>Médica</option><option>Ortopédica</option><option>Cirúrgica</option></Select></div>
       {type === "mrc" && <div className="field col-span-4"><Label>Número do atendimento</Label><Input {...form.register("attendance_number")} /><FieldError text={form.formState.errors.attendance_number?.message} /></div>}
-      {type !== "barthel" && <div className="field col-span-4"><Label>Colaborador(a)</Label><Select {...form.register("collaborator_id")}><option value="">Selecione</option>{collaborators.filter((x) => unitCollaboratorIds.has(x.id)).map((x) => <option key={x.id} value={x.id}>{x.canonical_name}</option>)}</Select><FieldError text={form.formState.errors.collaborator_id?.message} /></div>}
+      <div className="field col-span-4"><Label>{type === "melhoria_uti" ? "Colaborador(a)" : "Avaliado por"}</Label><Select {...form.register("collaborator_id")}><option value="">Selecione</option>{collaborators.filter((x) => unitCollaboratorIds.has(x.id)).map((x) => <option key={x.id} value={x.id}>{x.canonical_name}</option>)}</Select><FieldError text={form.formState.errors.collaborator_id?.message} /></div>
       {type === "melhoria_uti" && <><div className="field col-span-4"><Label>Diagnóstico principal (CID)</Label><Input {...form.register("cid")} /></div><div className="field col-span-4"><Label>Data de entrada/saída na UTI</Label><DateField iso={form.getValues("event_date") ?? undefined} onIso={(v) => form.setValue("event_date", v || undefined, { shouldValidate: true })} /></div><div className="field col-span-12"><Label>Observações</Label><Textarea {...form.register("notes")} /></div></>}
       {moment === "saida" && entry.status === "found" && <Alert className="col-span-12 flex gap-3 border-emerald-200 bg-emerald-50 text-emerald-900"><UserCheck className="size-5 shrink-0" /><span>Paciente localizado: <b>{entry.initials}</b> — entrada em {ptBRDate.format(new Date(`${entry.date}T00:00:00Z`))} com <b>{entry.total} pontos</b>. A melhora será comparada com essa avaliação.</span></Alert>}
       {moment === "saida" && entry.status === "notfound" && <Alert className="col-span-12 border-amber-300 bg-amber-50 text-amber-900">Registro não encontrado nesta unidade. Confira o nº do prontuário — sem a avaliação de entrada, a melhora não entra no índice do dashboard.</Alert>}

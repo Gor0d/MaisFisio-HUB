@@ -468,10 +468,10 @@ describe("RLS executada em PostgreSQL", () => {
       "service_role",
       null,
       `insert into public.audit_logs (
-        table_name, record_id, action, new_data, changed_by, changed_at
+        table_name, record_id, action, new_data, changed_by, changed_at, unit_id
       ) values
-        ('production_records', 'auditoria-galileu', 'INSERT', jsonb_build_object('unit_id', $1::text), $3, now() + interval '1 minute'),
-        ('production_records', 'auditoria-terezinha', 'INSERT', jsonb_build_object('unit_id', $2::text), $3, now() + interval '2 minutes')`,
+        ('production_records', 'auditoria-galileu', 'INSERT', jsonb_build_object('unit_id', $1::text), $3, now() + interval '1 minute', $1::uuid),
+        ('production_records', 'auditoria-terezinha', 'INSERT', jsonb_build_object('unit_id', $2::text), $3, now() + interval '2 minutes', $2::uuid)`,
       [ids.units.galileu, ids.units.terezinha, ids.users.adminGalileu],
     );
 
@@ -479,7 +479,7 @@ describe("RLS executada em PostgreSQL", () => {
       db,
       "authenticated",
       ids.users.adminGalileu,
-      "select record_id from public.admin_audit_logs($1::uuid, 100)",
+      "select record_id from public.audit_log_search($1::uuid, current_date - 1, current_date + 1, null, null, null, 'todos', 100, 0)",
       [ids.units.galileu],
     );
     const recordIds = audit.rows.map((row) => row.record_id);
